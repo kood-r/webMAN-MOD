@@ -403,8 +403,12 @@ int main()
 	// Show message
 	Init_Graph();
 	cls();
-	DrawString(20, 216+24, "Installing webMAN MOD...");
-	SetFontAutoCenter(0);
+	if(full)
+		DrawString(20, 216+24, "Installing webMAN MOD FULL...");
+	else if(lite)
+		DrawString(20, 216+24, "Installing webMAN MOD Lite...");
+	else
+		DrawString(20, 216+24, "Installing webMAN MOD...");
 	tiny3d_Flip();
 	sleep(2);
 
@@ -540,6 +544,8 @@ int main()
 	file_copy(APP_USRDIR "/html/sman.js",        XMLHOST_DIR "/sman.js");
 	file_copy(APP_USRDIR "/html/help.html",      XMLHOST_DIR "/help.html");
 	file_copy(APP_USRDIR "/html/xmb.html",       XMLHOST_DIR "/xmb.html");
+	file_copy(APP_USRDIR "/html/combos.html",    XMLHOST_DIR "/combos.html");
+	file_copy(APP_USRDIR "/html/combolist.js",   XMLHOST_DIR "/combolist.js");
 
 	// copy javascripts
 	file_copy(APP_USRDIR "/html/jquery.min.js",    XMLHOST_DIR "/jquery.min.js");  // jQuery v3.1.1
@@ -628,17 +634,19 @@ int main()
 		file_copy(APP_USRDIR "/res/wm_online_ids.txt", RES_DIR "/wm_online_ids.txt");
 	if(not_exists(RES_DIR "/wm_ignore.txt"))
 		file_copy(APP_USRDIR "/res/wm_ignore.txt",     RES_DIR "/wm_ignore.txt");
+	if(not_exists(RES_DIR "/roms_extensions.txt"))
+		file_copy(APP_USRDIR "/res/roms_extensions.txt", RES_DIR "/roms_extensions.txt");
+
+	file_copy(APP_USRDIR "/res/npsignin_plugin.rco",     RES_DIR "/npsignin_plugin.rco");
 
 	// webMAN ADD-ONS
-	file_copy(APP_USRDIR "/addons/boot_mamba.pkg", RES_DIR "/boot_mamba.pkg");
-	file_copy(APP_USRDIR "/addons/prepNTFS.pkg", RES_DIR "/prepNTFS.pkg");
-//	file_copy(APP_USRDIR "/addons/PS2_CONFIG.pkg", RES_DIR "/PS2_CONFIG.pkg");
-	file_copy(APP_USRDIR "/addons/PSP_Minis_Launcher.pkg", RES_DIR "/PSP_Minis_Launcher.pkg");
-	file_copy(APP_USRDIR "/addons/PSP_Remasters_Launcher.pkg"	, RES_DIR "/PSP_Remasters_Launcher.pkg");
+	file_copy(APP_USRDIR "/addons/prepISO.pkg",    RES_DIR "/prepISO.pkg");
 	file_copy(APP_USRDIR "/addons/RELOAD_XMB.ISO", RES_DIR "/RELOAD_XMB.ISO");
-//	file_copy(APP_USRDIR "/addons/Reload_XMB.pkg", RES_DIR "/Reload_XMB.pkg");
-//	file_copy(APP_USRDIR "/addons/ROMS_PKG_Launcher.pkg", RES_DIR "/ROMS_PKG_Launcher.pkg");
-	file_copy(APP_USRDIR "/addons/wm_theme_standard.pkg", RES_DIR "/wm_theme_standard.pkg");
+	file_copy(APP_USRDIR "/addons/boot_mamba.pkg",    RES_DIR "/boot_mamba.pkg");
+	file_copy(APP_USRDIR "/addons/boot_fake_ofw.pkg", RES_DIR "/boot_fake_ofw.pkg");
+	file_copy(APP_USRDIR "/addons/PSP_Minis_Launcher.pkg",     RES_DIR "/PSP_Minis_Launcher.pkg");
+	file_copy(APP_USRDIR "/addons/PSP_Remasters_Launcher.pkg", RES_DIR "/PSP_Remasters_Launcher.pkg");
+	file_copy(APP_USRDIR "/addons/wm_theme_standard.pkg",         RES_DIR "/wm_theme_standard.pkg");
 	file_copy(APP_USRDIR "/addons/wm_theme_metalification.pkg"	, RES_DIR "/wm_theme_metalification.pkg");
 	file_copy(APP_USRDIR "/addons/wm_theme_rebugification.pkg"	, RES_DIR "/wm_theme_rebugification.pkg");
 	file_copy(APP_USRDIR "/addons/wm_theme_flowerification.pkg"	, RES_DIR "/wm_theme_flowerification.pkg");
@@ -652,8 +660,10 @@ int main()
 	sysLv2FsRename(APP_USRDIR "/xmb/RELOADXMB", RELOADXMB_DIR);
 	sysLv2FsRename(APP_USRDIR "/xmb/PKGLAUNCH", PKGLAUNCH_DIR);
 
-	file_copy(APP_USRDIR "/xmb/PKGLAUNCH/USRDIR/EBOOT.BIN",          PKGLAUNCH_DIR "/USRDIR/EBOOT.BIN");
-	file_copy(APP_USRDIR "/xmb/PKGLAUNCH/PS3_GAME/USRDIR/EBOOT.BIN", PKGLAUNCH_DIR "/PS3_GAME/USRDIR/EBOOT.BIN");
+	file_copy(APP_USRDIR "/xmb/PKGLAUNCH/USRDIR/EBOOT.BIN",              PKGLAUNCH_DIR "/USRDIR/EBOOT.BIN");
+	file_copy(APP_USRDIR "/xmb/PKGLAUNCH/PS3_GAME/USRDIR/EBOOT.BIN",     PKGLAUNCH_DIR "/PS3_GAME/USRDIR/EBOOT.BIN");
+	file_copy(APP_USRDIR "/xmb/PKGLAUNCH/PS3_GAME/USRDIR/retroarch.bak", PKGLAUNCH_DIR "/PS3_GAME/USRDIR/retroarch.bak");
+	file_copy(APP_USRDIR "/xmb/PKGLAUNCH/PS3_GAME/USRDIR/retroarch.cce", PKGLAUNCH_DIR "/PS3_GAME/USRDIR/retroarch.cce");
 
 	sysLv2FsMkdir(PS2CONFIG_DIR, DMODE);
 	sysLv2FsMkdir(PS2CONFIG_USRDIR, DMODE);
@@ -747,6 +757,9 @@ int main()
 
 	if(not_exists(XMBMANPLS_DIR "/PARAM.SFO"))
 		file_copy(APP_USRDIR "/xmbm/PARAM.SFO", XMBMANPLS_DIR "/PARAM.SFO");
+
+	if((sysLv2FsStat(XMBMANPLS_DIR "/ICON0.PNG", &stat) == SUCCESS) && (stat.st_size == 2138))
+		file_copy(APP_USRDIR "/xmbm/ICON0.PNG", XMBMANPLS_DIR "/ICON0.PNG");
 
 	if(not_exists(XMBMANPLS_DIR "/ICON0.PNG"))
 		file_copy(APP_USRDIR "/xmbm/ICON0.PNG", XMBMANPLS_DIR "/ICON0.PNG");
@@ -883,7 +896,7 @@ int main()
 
 	// skip update custom language file
 	if(not_exists(LANG_DIR "/LANG_XX.TXT"))
-		file_copy(APP_USRDIR "/LANG_XX.TXT", LANG_DIR "/LANG_XX.TXT");
+		file_copy(APP_USRDIR "/lang/LANG_XX.TXT", LANG_DIR "/LANG_XX.TXT");
 
 	sysLv2FsUnlink(COMBO_DIR "wm_custom_r2_square"); // delete bad file
 

@@ -1,7 +1,7 @@
 #ifdef USE_NTFS
 #define MAX_SECTIONS	(int)((_64KB_-sizeof(rawseciso_args))/8)
 
-//static char paths [13][12] = {"GAMES", "GAMEZ", "PS3ISO", "BDISO", "DVDISO", "PS2ISO", "PSXISO", "PSXGAMES", "PSPISO", "ISO", "video", "GAMEI", "ROMS"};
+//static char paths [13][10] = {"GAMES", "GAMEZ", "PS3ISO", "BDISO", "DVDISO", "PS2ISO", "PSXISO", "PSXGAMES", "PSPISO", "ISO", "video", "GAMEI", "ROMS"};
 
 enum ntfs_folders
 {
@@ -29,19 +29,19 @@ static sys_addr_t sysmem_p = NULL;
 
 static void create_ntfs_file(char *path, char *filename, size_t plen)
 {
-	int parts;
-	size_t extlen = 4;
+	int parts = ps3ntfs_file_to_sectors(path, sectionsP, sections_sizeP, MAX_SECTIONS, 1);
+
+	if(parts <= 0) return;
 
 	unsigned int num_tracks;
 	int emu_mode = EMU_PS3;
 	TrackDef tracks[MAX_TRACKS];
 	ScsiTrackDescriptor *scsi_tracks;
 
+	size_t extlen = 4;
 	char tmp_path[MAX_PATH_LEN];
 
 	rawseciso_args *p_args;
-
-	parts = ps3ntfs_file_to_sectors(path, sectionsP, sections_sizeP, MAX_SECTIONS, 1);
 
 	// get multi-part file sectors
 	if(is_iso_0(filename))
@@ -90,8 +90,6 @@ static void create_ntfs_file(char *path, char *filename, size_t plen)
 			if(cd_sector_size & 0xf) cd_sector_size_param = cd_sector_size<<8;
 			else if(cd_sector_size != 2352) cd_sector_size_param = cd_sector_size<<4;
 
-			const char *cue_ext[4] = {".cue", ".ccd", ".CUE", ".CCD"};
-
 			if(change_ext(path, 4, cue_ext))
 			{
 				if(sysmem_p || sys_memory_allocate(_64KB_, SYS_MEMORY_PAGE_SIZE_64K, &sysmem_p) == CELL_OK)
@@ -112,7 +110,7 @@ static void create_ntfs_file(char *path, char *filename, size_t plen)
 
 		uint32_t array_len = parts * sizeof(uint32_t);
 
-		memcpy(plugin_args + sizeof(rawseciso_args) + array_len, sections_sizeP, array_len);
+		memcpy64(plugin_args + sizeof(rawseciso_args) + array_len, sections_sizeP, array_len);
 
 		int max = MAX_SECTIONS - ((num_tracks * sizeof(ScsiTrackDescriptor)) / 8);
 
@@ -137,7 +135,10 @@ static void create_ntfs_file(char *path, char *filename, size_t plen)
 		}
 
 		int slen = strlen(filename) - extlen;
-		filename[slen] = NULL;
+		filename[slen] = '\0';
+
+		snprintf(tmp_path, sizeof(tmp_path), "%s/%s%s.SFO", WMTMP, filename, SUFIX2(profile));
+		if(not_exists(tmp_path)) {filename[slen] = '.', slen += extlen, extlen = 0;} // create file with .iso extension
 
 		if(ntfs_subdir && (strncmp(ntfs_subdir, filename, slen) != 0))
 		{
@@ -149,17 +150,37 @@ static void create_ntfs_file(char *path, char *filename, size_t plen)
 
 		save_file(tmp_path, (char*)plugin_args, (sizeof(rawseciso_args) + (2 * array_len) + (num_tracks * sizeof(ScsiTrackDescriptor)))); ntfs_count++;
 
+		if(ntfs_m == mPS3)
+		{
+			snprintf(tmp_path, sizeof(tmp_path), "%s/%s%s.SFO", WMTMP, filename, SUFIX2(profile));
+			if(not_exists(tmp_path))
+			{
+				// extract PARAM.SFO from ISO
+				if(sysmem_p || sys_memory_allocate(_64KB_, SYS_MEMORY_PAGE_SIZE_64K, &sysmem_p) == CELL_OK)
+				{
+					char *buffer = (char*)sysmem_p;
+					read_file(path, buffer, _4KB_, 0x10800);
+					u16 start = 0x40; u64 lba = getlba(buffer, _4KB_, "PARAM.SFO;1", 11, &start);
+					if(lba)
+					{
+						read_file(path, buffer, _4KB_, lba * 0x800ULL);
+						save_file(tmp_path, buffer, _4KB_);
+					}
+				}
+			}
+		}
+
 		if(!get_image_file(path, plen - extlen)) return; // not found image in NTFS
 
 		plen = sprintf(tmp_path, "%s/%s", WMTMP, filename);
 		if( get_image_file(tmp_path, plen - extlen) ) return; // found image in WMTMP
 
 		// copy external image to WMTMP
-		_file_copy(path, tmp_path);
+		force_copy(path, tmp_path);
 
 /*
 		for_sfo:
-		if(m == mPS3) // mount PS3ISO
+		if(ntfs_m == mPS3) // mount PS3ISO
 		{
 			strcpy(path + plen - 3, "SFO");
 			if(not_exists(path))
@@ -172,11 +193,11 @@ static void create_ntfs_file(char *path, char *filename, size_t plen)
 
 				if(file_exists("/dev_bdvd/PS3_GAME/PARAM.SFO"))
 				{
-					file_copy("/dev_bdvd/PS3_GAME/PARAM.SFO", path, COPY_WHOLE_FILE);
+					file_copy("/dev_bdvd/PS3_GAME/PARAM.SFO", path);
 
 					strcpy(path + plen - 3, "PNG");
 					if(not_exists(path))
-						file_copy("/dev_bdvd/PS3_GAME/ICON0.PNG", path, COPY_WHOLE_FILE);
+						file_copy("/dev_bdvd/PS3_GAME/ICON0.PNG", path);
 				}
 
 				sys_ppu_thread_t t;
@@ -197,8 +218,8 @@ static void scan_path_ntfs(const char *path, bool chk_dirs)
 		char path[STD_PATH_LEN];
 	} t_line_entries;
 
-	pdir = ps3ntfs_diropen(path);
-	if(pdir != NULL)
+	pdir = ps3ntfs_opendir(path);
+	if(pdir)
 	{
 		sys_addr_t sysmem = NULL;
 		if(chk_dirs) sys_memory_allocate(_64KB_, SYS_MEMORY_PAGE_SIZE_64K, &sysmem);
@@ -250,47 +271,60 @@ static int prepNTFS(u8 clear)
 	if(prepntfs_working || skip_prepntfs) {skip_prepntfs = false; return 0;}
 	prepntfs_working = true;
 
-
 	const char *prefix[2] = {"/", "/PS3/"};
 
 	cellFsMkdir(TMP_DIR, DMODE);
 	cellFsMkdir(WMTMP, DMODE);
 	cellFsChmod(WMTMP, DMODE);
-	cellFsUnlink((char*)WMTMP "/games.html");
+	cellFsUnlink(WMTMP "/games.html");
 	int fd = NONE;
 	char path[STD_PATH_LEN];
+	bool retry;
 
-	check_ntfs_volumes();
-
-	if(cellFsOpendir(WMTMP, &fd) == CELL_FS_SUCCEEDED)
+	// remove ntfs files from WMTMP
+	do
 	{
-		u16 dlen = sprintf(path, "%s/", WMTMP);
-		char *ext, *path_file = path + dlen;
-
-		CellFsDirectoryEntry dir; u32 read_f;
-		char *entry_name = dir.entry_name.d_name;
-
-		while(!cellFsGetDirectoryEntries(fd, &dir, sizeof(dir), &read_f) && read_f)
+		retry = false;
+		if(cellFsOpendir(WMTMP, &fd) == CELL_FS_SUCCEEDED)
 		{
-			ext = strstr(entry_name, ".ntfs[");
-			if(ext && (clear || (mountCount <= 0) || (!IS(ext, ".ntfs[BDFILE]") && !IS(ext, ".ntfs[PS2ISO]") && !IS(ext, ".ntfs[PSPISO]")))) {sprintf(path_file, "%s", entry_name); cellFsUnlink(path);}
-		}
-		cellFsClosedir(fd);
-	}
+			u16 dlen = sprintf(path, "%s/", WMTMP);
+			char *ext, *ntfs_file = path + dlen;
 
+			CellFsDirectoryEntry dir; u32 read_f;
+			char *entry_name = dir.entry_name.d_name;
+
+			while(!cellFsGetDirectoryEntries(fd, &dir, sizeof(dir), &read_f) && read_f)
+			{
+				ext = strstr(entry_name, ".ntfs[");
+				if(ext && (clear || (mountCount <= 0) ||
+				  (!IS(ext, ".ntfs[BDFILE]") && !IS(ext, ".ntfs[PS2ISO]") && !IS(ext, ".ntfs[PSPISO]")))
+				)
+				{
+					sprintf(ntfs_file, "%s", entry_name);
+					cellFsUnlink(path); retry = true;
+				}
+			}
+			cellFsClosedir(fd);
+		}
+	}
+	while (retry);
+
+	// allocate memory
 	sys_addr_t addr = NULL;
 
+	if(mountCount <= 0) mount_all_ntfs_volumes(); //check_ntfs_volumes();
+
 	if(mountCount <= 0) {mountCount = NTFS_UNMOUNTED; goto exit_prepntfs;}
-	{
-		sys_memory_container_t vsh_mc = get_vsh_memory_container();
-		if(vsh_mc) sys_memory_allocate_from_container(_64KB_, vsh_mc, SYS_MEMORY_PAGE_SIZE_64K, &addr);
-		if(!addr && sys_memory_allocate(_64KB_, SYS_MEMORY_PAGE_SIZE_64K, &addr) != CELL_OK) goto exit_prepntfs;
-	}
+
+	if(sys_memory_allocate(_64KB_, SYS_MEMORY_PAGE_SIZE_64K, &addr) != CELL_OK) goto exit_prepntfs;
+
+	if(!addr) goto exit_prepntfs;
 
 	plugin_args    = (u8 *)(addr);
 	sectionsP      = (u32*)(addr + sizeof(rawseciso_args));
 	sections_sizeP = (u32*)(addr + sizeof(rawseciso_args) + _32KB_);
 
+	// scan
 	ntfs_count = 0;
 
 	for(u8 i = 0; i < mountCount; i++)
@@ -316,8 +350,12 @@ static int prepNTFS(u8 clear)
 	}
 
 exit_prepntfs:
-	if(sysmem_p) sys_memory_free(sysmem_p);
-	if(addr) sys_memory_free(addr);
+	if(sysmem_p) sys_memory_free(sysmem_p); sysmem_p = NULL;
+	if(addr) sys_memory_free(addr); addr = NULL;
+
+	plugin_args = NULL;
+	sectionsP = NULL;
+	sections_sizeP = NULL;
 
 	prepntfs_working = false;
 	return ntfs_count;

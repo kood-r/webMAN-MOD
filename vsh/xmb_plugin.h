@@ -65,7 +65,7 @@ enum plugins
 typedef struct
 {
 	int (*GetPluginIdByName)(const char *);      // char * plugin name - get plugin id by string name
-	int (*GetPluginNameById)(int);               // int value (Plugin Enum ID) - gets plugin name string by Id
+	char* (*GetPluginNameById)(int);             // int value (Plugin Enum ID) - gets plugin name string by Id
 	int (*IsPluginViewAvailable)(int) ;          // can test if plugin view is available or not. (Result != 0)
 	int (*LoadPlugin3)(int, void *, int) ;       // Loads corresponding plugin and executes the thread for view/interface usage
 	int (*LoadPlugin4)(int *) ;                  // Utility::LoadPlugin, 1 Parameter: uint * { Plugin Enum Id, int, int, int }
@@ -140,3 +140,7 @@ typedef struct
 } xmb_plugin_mod0;
 
 xmb_plugin_mod0 * mod0_interface;
+
+//#define XMM0	0x584D4D30
+//#define XMB2	0x584D4232
+//#define MOD0	0x4D4F4430

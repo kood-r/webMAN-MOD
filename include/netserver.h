@@ -26,9 +26,9 @@ static _client clients[MAX_CLIENTS];
 static void init_client(u8 index)
 {
 	if(clients[index].fd) cellFsClose(clients[index].fd);
-	for(u8 i = 0; i < MAX_ISO_PARTS; i++) {if(clients[index].fp[i]) cellFsClose(clients[index].fp[i]); clients[index].fp[i] = NULL;}
+	for(u8 i = 0; i < MAX_ISO_PARTS; i++) {if(clients[index].fp[i]) cellFsClose(clients[index].fp[i]); clients[index].fp[i] = 0;}
 
-	clients[index].fd = NULL;
+	clients[index].fd = 0;
 	clients[index].is_multipart = 0;
 	clients[index].part = 0;
 	clients[index].part_size = 0;
@@ -45,7 +45,7 @@ static void translate_path(char *path, u16 fp_len)
 		return;
 	}
 
-	char tmppath[fp_len+1]; sprintf(tmppath, "%s", path);
+	char tmppath[fp_len + 1]; strcpy(tmppath, path);
 
 	for(u8 i = 0; i < 16; i++)
 	{
@@ -435,7 +435,7 @@ static int process_open_dir_cmd(u8 index, netiso_open_dir_cmd *cmd)
 		return FAILED;
 	}
 
-	sprintf(clients[index].dirpath, "%s", dirpath);
+	strcpy(clients[index].dirpath, dirpath);
 
 	/// translate path ///
 
@@ -602,7 +602,7 @@ static void handleclient_net(u64 arg)
 	sys_net_get_sockinfo(clients[index].s, &conn_info, 1);
 
 	char ip_address[16];
-	sprintf(ip_address, "%s", inet_ntoa(conn_info.remote_adr));
+	strcpy(ip_address, inet_ntoa(conn_info.remote_adr));
 
 	if(bind_check && webman_config->bind && ((conn_info.local_adr.s_addr!=conn_info.remote_adr.s_addr)  && strncmp(ip_address, webman_config->allow_ip, strlen(webman_config->allow_ip))!=0))
 	{
@@ -671,25 +671,26 @@ static void netsvrd_thread(__attribute__((unused)) u64 arg)
 	net_working = 1;
 
 relisten:
-	if(working && net_working) list_s = slisten(webman_config->netsrvp, NET_BACKLOG);
-	else goto end;
+	if(!working) goto end;
+
+	if(net_working) list_s = slisten(webman_config->netsrvp, NET_BACKLOG);
 
 	if(list_s < 0)
 	{
 		sys_ppu_thread_sleep(1);
-		if(working) goto relisten;
-		else goto end;
+		goto relisten;
 	}
 
 	active_socket[3] = list_s;
 
 	//if(list_s >= 0)
 	{
-		while(working)
+		while(net_working)
 		{
 			sys_ppu_thread_usleep(1668);
-			int conn_s_net;
 			if(!working || !net_working) break;
+
+			int conn_s_net;
 
 			if((conn_s_net = accept(list_s, NULL, NULL)) >= 0)
 			{
@@ -698,24 +699,24 @@ relisten:
 				for(u8 i = 0; i < MAX_CLIENTS; i++) if(!clients[i].s) {index = i; break;}
 				if(index < 0) {sclose(&conn_s_net); continue;}
 
+				if(!working || !net_working) {sclose(&conn_s_net); break;}
+
 				// initizalize client
 				init_client(index);
 				clients[index].s = conn_s_net;
 
 				// handle client
 				sys_ppu_thread_t t_id;
-				if(working) sys_ppu_thread_create(&t_id, handleclient_net, (u64)index, THREAD_PRIO_NET, THREAD_STACK_SIZE_NET_CLIENT, SYS_PPU_THREAD_CREATE_JOINABLE, THREAD_NAME_NETSVRD);
-				else {sclose(&conn_s_net); break;}
+				sys_ppu_thread_create(&t_id, handleclient_net, (u64)index, THREAD_PRIO_NET, THREAD_STACK_SIZE_NET_CLIENT, SYS_PPU_THREAD_CREATE_JOINABLE, THREAD_NAME_NETSVRD);
 			}
-			else
-			if((sys_net_errno == SYS_NET_EBADF) || (sys_net_errno == SYS_NET_ENETDOWN))
+			else if((sys_net_errno == SYS_NET_EBADF) || (sys_net_errno == SYS_NET_ENETDOWN))
 			{
 				sclose(&list_s);
-				if(working) goto relisten;
-				else break;
+				goto relisten;
 			}
 		}
 	}
+
 end:
 	sclose(&list_s);
 	sys_ppu_thread_exit(0);

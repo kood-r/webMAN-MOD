@@ -204,7 +204,7 @@ static void setup_parse_settings(char *param)
 	if(IS_UNMARKED("vrc=1")) webman_config->combo2|=VIDRECORD;
 #endif
 
-	webman_config->info  = get_valuen(param, "&xi=", 0, 0x13); // XMB info level
+	webman_config->info  = get_valuen(param, "&xi=", 0, 0x33); // XMB info level
 	webman_config->minfo = get_valuen(param, "&mi=", 0, 3);    // Mount info level
 
 	webman_config->wmstart = IS_MARKED("wn=1");
@@ -397,9 +397,9 @@ static void setup_parse_settings(char *param)
 #endif
 
 #if defined(WM_CUSTOM_COMBO) || defined(WM_REQUEST)
-	char command[256]; size_t cmdlen = 0; memset(command, 0, sizeof(command));
+	char command[256];
 
-	cmdlen = get_param("ccbo=", command, param, 255);
+	size_t cmdlen = get_param("ccbo=", command, param, 255);
 
  #ifdef WM_CUSTOM_COMBO
 	if(save_file(WM_CUSTOM_COMBO "r2_square", command, cmdlen) != CELL_FS_SUCCEEDED)
@@ -423,7 +423,7 @@ static void setup_form(char *buffer, char *templn)
 	char STR_USBPOLL[88];//		= "Disable USB polling";
 	char STR_FTPSVC[64];//		= "Disable FTP service";
 	char STR_FIXGAME[56];//		= "Disable auto-fix game";
-//	char STR_COMBOS[88];//		= "Disable all PAD shortcuts";
+	char STR_COMBOS[88];//		= "Disable all PAD shortcuts";
 	char STR_MMCOVERS[72];//	= "Disable multiMAN covers";
 	char STR_ACCESS[88];//		= "Disable remote access to FTP/WWW services";
 	char STR_NOSETUP[120];//	= "Disable webMAN Setup entry in \"webMAN Games\"";
@@ -479,7 +479,7 @@ static void setup_form(char *buffer, char *templn)
 	language("STR_USBPOLL",   STR_USBPOLL,   "Disable USB polling");
 	language("STR_FTPSVC",    STR_FTPSVC,    "Disable FTP service");
 	language("STR_FIXGAME",   STR_FIXGAME,   "Disable auto-fix game");
-//	language("STR_COMBOS",    STR_COMBOS,    "Disable all PAD shortcuts");
+	language("STR_COMBOS",    STR_COMBOS,    "Disable all PAD shortcuts");
 	language("STR_MMCOVERS",  STR_MMCOVERS,  "Disable multiMAN covers");
 	language("STR_ACCESS",    STR_ACCESS,    "Disable remote access to FTP/WWW services");
 	language("STR_NOSETUP",   STR_NOSETUP,   "Disable " WM_APPNAME " Setup entry in \"" WM_APPNAME " Games\"");
@@ -803,14 +803,19 @@ static void setup_form(char *buffer, char *templn)
 	value = webman_config->info;
 	concat(buffer, "Info <select name=\"xi\">");
 	#ifndef LITE_EDITION
-					add_option_item(0x03, "None",             (value == 0x03), buffer);
-	if(use_imgfont) add_option_item(0x13, "Tags",             (value == 0x13), buffer);
-					add_option_item(0x02, "ID",               (value == 0x02), buffer);
-	if(use_imgfont) add_option_item(0x12, "ID + Tags",        (value == 0x12), buffer);
-					add_option_item(0x00, "Path",             (value == 0x00), buffer);
-	if(use_imgfont) add_option_item(0x10, "Path + Tags",      (value == 0x10), buffer);
-					add_option_item(0x01, "Path + ID",        (value == 0x01), buffer);
-	if(use_imgfont) add_option_item(0x11, "Path + ID + Tags", (value == 0x11), buffer);
+	use_imgfont = (file_ssize(IMAGEFONT_PATH) > 900000);
+					add_option_item(0x03, "None",                       (value == 0x03), buffer);
+	if(use_imgfont) add_option_item(0x13, "Tags",                       (value == 0x13), buffer);
+					add_option_item(0x02, "ID",                         (value == 0x02), buffer);
+	if(use_imgfont) add_option_item(0x12, "ID + Tags",                  (value == 0x12), buffer);
+					add_option_item(0x22, "ID + Version",               (value == 0x22), buffer);
+	if(use_imgfont) add_option_item(0x32, "ID + Version + Tags",        (value == 0x32), buffer);
+					add_option_item(0x00, "Path",                       (value == 0x00), buffer);
+	if(use_imgfont) add_option_item(0x10, "Path + Tags",                (value == 0x10), buffer);
+					add_option_item(0x01, "Path + ID",                  (value == 0x01), buffer);
+	if(use_imgfont) add_option_item(0x11, "Path + ID + Tags",           (value == 0x11), buffer);
+					add_option_item(0x21, "Path + ID + Version",        (value == 0x21), buffer);
+	if(use_imgfont) add_option_item(0x31, "Path + ID + Version + Tags", (value == 0x31), buffer);
 	#else
 	add_option_item(0x03, "None",      (value == 0x03), buffer);
 	add_option_item(0x02, "ID",        (value == 0x02), buffer);
@@ -1035,7 +1040,9 @@ static void setup_form(char *buffer, char *templn)
 	buffer += strlen(buffer);
 
 	//combos
-	sprintf(templn, "</div>" HTML_BLU_SEPARATOR "<b><a class=\"tg\" href=\"javascript:tgl(cmb);\"> %s </a></b><br><div id=\"cmb\"><table width=\"800\" border=\"0\" cellspacing=\"2\" cellpadding=\"0\"><tr><td nowrap valign=top>", STR_COMBOS2); concat(buffer, templn);
+	sprintf(templn, "</div>" HTML_BLU_SEPARATOR "<b><a class=\"tg\" href=\"javascript:tgl(cmb);\"> %s </a></b><br><div id=\"cmb\">"
+					"<button onclick=\"var cb=document.getElementById('cmb').querySelectorAll('input[type=checkbox]');for(i=0;i<cb.length;i++)cb[i].checked=false;return false;\">%s</button>"
+					"<table width=\"800\" border=\"0\" cellspacing=\"2\" cellpadding=\"0\"><tr><td nowrap valign=top>", STR_COMBOS2, STR_COMBOS); concat(buffer, templn);
 
 #ifdef COBRA_ONLY
 	add_checkbox("vs", "VSH MENU",      " : <b>SELECT</b><br>"       , !(webman_config->combo2 & C_VSHMENU), buffer);
@@ -1344,9 +1351,10 @@ static void read_settings(void)
 	//webman_config->netsrvp  = NETPORT;
 	//webman_config->ftp_port = FTPPORT;
 
-	//for(u8 id = 0; id < 5; id++) webman_config->netp[id] = NETPORT; // webman_config->netd[id] = 0; webman_config->neth[id][0] = NULL;
+	//for(u8 id = 0; id < 5; id++) webman_config->netp[id] = NETPORT; // webman_config->netd[id] = 0; webman_config->neth[id][0] = '\0';
 
 	//webman_config->foot  = 0;       //Standard (896KB)
+	webman_config->vsh_mc = 4;
 	webman_config->nospoof = 1;       //don't spoof fw version
 
 	#ifdef MOUNT_GAMEI

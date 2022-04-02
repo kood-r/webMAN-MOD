@@ -178,8 +178,8 @@
 							goto reboot; // vsh reboot
 						}
 						else
-						if( (pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL1] == (CELL_PAD_CTRL_SELECT | CELL_PAD_CTRL_R3)) && // reset-safe mode
-							(pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL2] == (CELL_PAD_CTRL_L2 | CELL_PAD_CTRL_R2))        // SELECT+R3+L2+R2
+						if( (pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL1] == (CELL_PAD_CTRL_SELECT | CELL_PAD_CTRL_R3)) &&       // reset-safe mode
+							(pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL2] == (CELL_PAD_CTRL_L2 | CELL_PAD_CTRL_R2)) && IS_ON_XMB // SELECT+R3+L2+R2
 							)
 						{
 							if(!sys_admin || IS_INGAME) continue; // allow reset config only for sys_admin on XMB
@@ -259,7 +259,7 @@
 						}
  #ifdef VIDEO_REC
 						else
-						if(!(webman_config->combo2 & VIDRECORD) && pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL1] == (CELL_PAD_CTRL_SELECT | CELL_PAD_CTRL_R3)) // SELECT + R3
+						if(!(webman_config->combo2 & VIDRECORD) && (pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL1] == (CELL_PAD_CTRL_SELECT | CELL_PAD_CTRL_R3))) // SELECT + R3
 						{
 							// SELECT+R3+L2+R2  = Record video with video_rec plugin (IN-GAME ONLY)
 							// SELECT+R3+L2     = Select video rec setting
@@ -378,13 +378,9 @@
 
 								cellRtcGetCurrentTick(&pTick);
 
-								u8 speed = fan_speed;
-								if(fan_ps2_mode) speed = (int)(255.f*(float)(webman_config->ps2_rate + 1) / 100.f); else
-								if((webman_config->fanc == DISABLED) && (get_fan_policy_offset > 0))
 								{
 									u8 st, mode, unknown;
 									sys_sm_get_fan_policy(0, &st, &mode, &fan_speed, &unknown);
-									speed = fan_speed;
 								}
 
 								_meminfo meminfo;
@@ -409,7 +405,7 @@
 								get_cobra_version(cfw_info);
 
 								char smax[24];
-								if(fan_ps2_mode)
+								if(fan_ps2_mode || ps2_classic_mounted)
 									sprintf(smax, "   PS2 Mode");
 								else if(webman_config->fanc == FAN_AUTO2)
 									sprintf(smax, "   MAX: AUTO");
@@ -429,12 +425,15 @@
 								char days[6]; *days = NULL;
 								if(dd) sprintf(days, "%id ", dd);
 
+								syscalls_removed = CFW_SYSCALLS_REMOVED(TOC);
+								if(!syscalls_removed) disable_signin_dialog();
+
 								u16 len =
 								sprintf(msg, "CPU: %i°C %s %i°C  FAN: %i%%   \n"
 											 "%s: %s%02d:%02d:%02d%s\n"
 											 "%s : %s %s\n"
 											 "IP: %s  %s  %s\n",
-											 t1, RSX, t2, (int)(((int)speed*100)/255),
+											 t1, RSX, t2, (int)(((int)fan_speed*100)/255),
 											 bb ? "Play" : "Startup", days, hh, mm, ss, smax,
 											 STR_FIRMWARE, fw_version, cfw_info, ip, net_type, syscalls_removed ? "[noSC]" :
 												  (webman_config->combo & SYS_ADMIN) ? (sys_admin ? "[ADMIN]":"[USER]") : "");
@@ -457,13 +456,12 @@
 								}
 								else
 								{
-									char *str_free = STR_MBFREE;
+									char hdd_free[40];
+									free_size(drives[0], hdd_free);
 									int mem_free = (int)(meminfo.avail>>10);
-									int hdd_free = (int)(get_free_space(drives[0])>>20), dm = (hdd_free % KB) / 100;
-									if(hdd_free > 1024) {hdd_free /= KB, str_free = STR_GBFREE;}
-									sprintf(msg + len,  "%s: %i.%i %s\n"
+									sprintf(msg + len,  "%s: %s\n"
 														"%s: %i %s\n",
-														STR_STORAGE, hdd_free, dm, str_free,
+														STR_STORAGE, hdd_free,
 														STR_MEMORY,  mem_free, STR_KBFREE);
 								}
 
@@ -498,7 +496,7 @@
 									webman_config->man_rate = RANGE(webman_config->man_rate, 20, 95); //%
 									webman_config->man_speed = PERCENT_TO_8BIT(webman_config->man_rate);
 									webman_config->man_speed = RANGE(webman_config->man_speed, MIN_FANSPEED_8BIT, MAX_FANSPEED_8BIT);
-									set_fan_speed(webman_config->man_speed);
+									set_fan_speed(webman_config->man_speed + 1);
 									sprintf(msg, "%s\n%s %i%%", STR_FANCH0, STR_FANCH2, webman_config->man_rate);
 								}
 								save_settings();
@@ -531,7 +529,7 @@
 									if(webman_config->man_rate>20) {if(pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL2] & CELL_PAD_CTRL_R2) webman_config->man_rate -= 5; else webman_config->man_rate -= 1;}
 									webman_config->man_speed = PERCENT_TO_8BIT(webman_config->man_rate);
 									webman_config->man_speed = RANGE(webman_config->man_speed, MIN_FANSPEED_8BIT, MAX_FANSPEED_8BIT);
-									set_fan_speed(webman_config->man_speed);
+									set_fan_speed(webman_config->man_speed + 1);
 									sprintf(msg, "%s\n%s %i%%", STR_FANCH0, STR_FANCH2, webman_config->man_rate);
 								}
 								save_settings();
@@ -737,8 +735,8 @@
 
 						restore_settings();
 
-						stop_prx_module();
-						sys_ppu_thread_exit(0);
+						finalize_module();
+						_sys_ppu_thread_exit(0);
 						break;
 					}
 					else if(!(webman_config->combo & GOTO_HOME) && (pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL1] == (CELL_PAD_CTRL_L3 | CELL_PAD_CTRL_R3))
@@ -863,8 +861,8 @@
  #endif
 						if(!(webman_config->combo & SHOW_IDPS) && ( (pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL2] & (CELL_PAD_CTRL_L2 | CELL_PAD_CTRL_R2 | CELL_PAD_CIRCLE_BTN)) == (CELL_PAD_CTRL_L2 | CELL_PAD_CTRL_R2 | CELL_PAD_CIRCLE_BTN) ) && IS_ON_XMB) // L2+R2+O
 						{
-							// L2+R2+O + [L1/R1/R1+R1] = Open Browser file manager / cpursx / games / setup
-							// L2+R2+X + [L1/R1/R1+R1] = Open Browser file manager / cpursx / games / setup (JAP)
+							// L2+R2+O + [L1/R1/L1+R1] = Open Browser file manager / cpursx / games / setup
+							// L2+R2+X + [L1/R1/L1+R1] = Open Browser file manager / cpursx / games / setup (JAP)
 #ifdef WM_CUSTOM_COMBO
 								 if(do_custom_combo("l2_r2_circle")) ;
 							else if(do_custom_combo("l2_r2_l1_circle")) ;
@@ -928,9 +926,58 @@
 							else
 #endif
 							{
-#ifdef SPOOF_CONSOLEID
+								char path[STD_PATH_LEN];
+								char *sfo = (char*)"/dev_bdvd/PS3_GAME/PARAM.SFO";
+								if(!file_exists(sfo)) sfo = (char*)"/app_home/PARAM.SFO";
+
+								if(file_exists(sfo) || IS_INGAME)
+								{
+									char title[128], title_id[12], version[8], version2[8];
+
+									if(get_game_info())
+									{
+										strcpy(title, _game_Title);
+										strcpy(title_id, _game_TitleID);
+									}
+									else
+									{
+										strcpy(title, sfo);
+										getTitleID(title, title_id, GET_TITLE_AND_ID);
+									}
+
+									int len = sprintf(msg, "ID: %s", title_id);
+
+									strcpy(path, sfo);
+									getTitleID(path, version, GET_VERSION);
+
+									sprintf(path, "%s%s/PARAM.SFO", HDD0_GAME_DIR, title_id);
+									if(!file_exists(path))
+										strcpy(path, sfo);
+
+									getTitleID(path, version2, GET_VERSION); if(*version2) strcpy(version, version2);
+									get_last_game(path);
+
+									sprintf(msg + len, " - v%s\n%s\n\n%s", version, title, path);
+									show_msg(msg);
+									sys_ppu_thread_sleep(5);
+								}
+								else if(file_exists("/dev_bdvd/SYSTEM.CNF"))
+								{
+									read_file("/dev_bdvd/SYSTEM.CNF", (void*)msg, 200, 0);
+
+									get_last_game(path);
+
+									strcat(msg, "\n"); strcat(msg, path);
+									show_msg(msg);
+									sys_ppu_thread_sleep(5);
+								}
+
+								#ifdef SPOOF_CONSOLEID
 								show_idps(msg);
-#endif
+								#endif
+
+								// backup / restore act.bak -> act.dat
+								backup_act_dat();
 							}
 						}
 

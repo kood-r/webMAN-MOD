@@ -72,7 +72,7 @@ static u64 get_pkg_size_and_install_time(const char *pkgfile)
 			struct CellFsStat s;
 			if(cellFsStat(install_path, &s) == CELL_FS_SUCCEEDED) pkg_install_time = s.st_mtime; // prevents pkg deletion if user cancels install
 
-			install_path[24] = NULL;
+			install_path[24] = '\0';
 		}
 		cellFsClose(fd);
 	}
@@ -85,7 +85,7 @@ static void wait_for_xml_download(char *filename, char *param)
 	char *xml = strstr(filename, ".xm!");
 	if(xml)
 	{
-		xml = strstr(filename, "~");
+		xml = strchr(filename, '~');
 
 		struct CellFsStat s; u64 size = 475000; if(xml) size = val(xml + 1); else xml = strstr(filename, ".xm!");
 /*
@@ -254,6 +254,8 @@ static int download_file(const char *param, char *msg)
 
 	if(conv_num)
 	{
+		filepath_check(pdpath); // replace $USERID$ with current user id & remove invalid chars
+
 		mkdir_tree(pdpath);
 
 		if(isDir(pdpath) || (cellFsMkdir(pdpath, DMODE) == CELL_FS_SUCCEEDED)) ;
@@ -393,7 +395,7 @@ static void installPKG_combo_thread(__attribute__((unused)) u64 arg)
 		{
 			if(is_ext(dir.d_name, ".pkg"))
 			{
-				sprintf(path_file, "%s", dir.d_name);
+				strcpy(path_file, dir.d_name);
 
 				char msg[MAX_PATH_LEN];
 				ret = installPKG(pkgfile, msg); if(!(webman_config->minfo & 1)) show_msg(msg);
@@ -419,9 +421,11 @@ static void installPKG_all(const char *path, bool delete_after_install)
 
 	if(!install_in_progress && IS_ON_XMB)
 	{
-		if(isDir(path))
+		INSTALL_PKG_PATH = (char*)path;
+		check_path_tags(INSTALL_PKG_PATH);
+
+		if(isDir(INSTALL_PKG_PATH))
 		{
-			INSTALL_PKG_PATH = (char*)path;
 			sys_ppu_thread_t thread_id;
 			sys_ppu_thread_create(&thread_id, installPKG_combo_thread, NULL, THREAD_PRIO, THREAD_STACK_SIZE_INSTALL_PKG, SYS_PPU_THREAD_CREATE_NORMAL, THREAD_NAME_INSTALLPKG);
 		}

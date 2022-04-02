@@ -257,7 +257,7 @@ static bool is_app_home_onxmb(void)
 	if(sys_memory_allocate(_64KB_, SYS_MEMORY_PAGE_SIZE_64K, &sysmem) == CELL_OK)
 	{
 		char *buffer = (char*)sysmem;
-		size_t read_e = read_file((char*)CATEGORY_GAME_XML, buffer, _8KB_, 0);
+		size_t read_e = read_file(CATEGORY_GAME_XML, buffer, _8KB_, 0);
 		has_app_home = ((read_e > 100) && (strstr(buffer, "seg_gamedebug") != NULL));
 		sys_memory_free(sysmem);
 	}
@@ -312,7 +312,8 @@ static void start_xmb_player(const char* column)
 		exec_xmb_command("close_all_list");
 		sys_ppu_thread_sleep(1);
 		exec_xmb_command2("focus_category %s", column);
-		exec_xmb_command2("focus_segment_index %s", "-1");
+		sys_ppu_thread_sleep(1);
+		exec_xmb_command("scroll_list 9999");
 		if(wait_for_abort(2)) return;
 		parse_pad_command("triangle", 0);
 		if(wait_for_abort(2)) return;
@@ -343,9 +344,7 @@ static void reload_xmb(void)
 		}
 		if(mount_unk)
 		{
-			#ifdef PS3MAPI
-			patch_gameboot(0); // non
-			#endif
+			patch_gameboot(0); // None
 			launch_disc(true);
 			mount_unk = EMU_OFF;
 		}
@@ -354,8 +353,8 @@ static void reload_xmb(void)
 #else
 static void reload_xmb(void)
 {
-	pad_data = pad_read(); // hold L2 to cancel reload xmb
-	if(pad_data.len > 0 && (pad_data.button[CELL_PAD_BTN_OFFSET_DIGITAL2] & CELL_PAD_CTRL_L2)) return; // hold L2 to cancel reload xmb
+	// hold L2 to cancel reload xmb
+	if(is_pressed(CELL_PAD_CTRL_L2)) return; // hold L2 to cancel reload xmb
 
 	if(IS_ON_XMB && file_exists(RELOADXMB_EBOOT))
 	{

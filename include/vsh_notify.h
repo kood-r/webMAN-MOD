@@ -38,6 +38,7 @@ enum rco_icons
 	ICON_VIDEO		 = 32,
 	ICON_GAME		 = 33,
 	ICON_PS2_DISC	 = 43,
+	ICON_PSP_UMD	 = 48,
 	ICON_WAIT		 = 49,
 	ICON_MOUNT		 = 50,
 };
@@ -148,7 +149,7 @@ static int32_t vshNotify_WithIcon(u8 icon_id, const char *msg)
 
 	int teximg, dummy = 0;
 	LoadRCOTexture(&teximg, _plugin, tex);
-	return vshcommon_A20E43DB(0, tex, 0, &teximg, &dummy, "", "", 0, message, 0, 0, 0);
+	return NotifyWithTexture(0, tex, 0, &teximg, &dummy, "", "", 0, message, 0, 0, 0);
 }
 //------------
 
@@ -182,5 +183,8 @@ static void show_status(const char *label, const char *status)
 {
 	char msg[200];
 	snprintf(msg, 199, "%s %s", label, status);
-	vshtask_notify(msg);
+	if(IS(label, STR_ERROR))
+		vshNotify_WithIcon(ICON_ERROR, msg);
+	else
+		vshtask_notify(msg);
 }

@@ -12,18 +12,24 @@
 		char *pos = strstr(_path, "/GAMEI/");
 		if(pos && !islike(_path, "/net"))
 		{
-			int tid_offset = 7; // folder is title_id
-			char *slash = strstr(pos + tid_offset, "/"); if(slash) *slash = 0;
-
-			if(strstr(pos + tid_offset, "_00-") == pos + 23) tid_offset += 7; // folder is content_id
+			pos += 7; // folder is title_id
+			char *slash = strchr(pos, '/'); if(slash) *slash = 0;
 
 			do_umount(false);
 
 			sys_map_path(APP_HOME_DIR, _path);
 			if(isDir(PKGLAUNCH_DIR)) sys_map_path(PKGLAUNCH_DIR, _path);
 
-			get_value(map_title_id, pos + tid_offset, TITLE_ID_LEN);
-			sprintf(_path, "%s/%s", "/dev_hdd0/game", map_title_id);
+			strcat(_path, "/PARAM.SFO");
+			if(file_exists(_path))
+				getTitleID(_path, map_title_id, GET_TITLE_ID_ONLY);
+			else
+			{
+				if(strstr(pos, "_00-") == pos + 16) pos += 7; // folder is content_id (skip EP0000-)
+				get_value(map_title_id, pos, TITLE_ID_LEN);
+			}
+
+			sprintf(_path, "%s%s", HDD0_GAME_DIR, map_title_id);
 			sys_map_path(_path, _path0);
 
 			ret = is_app_dir("/dev_hdd0/game", map_title_id);
@@ -54,7 +60,7 @@
 		)
 		{
 			// patch title name in PARAM.SFO of PKGLAUNCH
-			copy_rom_media((char*)"/PKG Launcher"); is_busy = false;
+			copy_rom_media("/PKG Launcher"); is_busy = false;
 
 			ret = file_exists(_path);
 			cobra_map_game(PKGLAUNCH_DIR, PKGLAUNCH_ID, true);
@@ -105,7 +111,7 @@
 	{
 		if(islike(_path, "/net")) ; else // mount ROMS in /net module
 
-		if((strstr(_path, "/ROMS/") != NULL) || (strcasestr(_path, ".SELF") != NULL) || (strcasestr(ROMS_EXTENSIONS + 4, ext) != NULL) )
+		if((strstr(_path, "/ROMS/") != NULL) || (strcasestr(_path, ".SELF") != NULL) || (strcasestr(ROMS_EXTENSIONS + 20, ext) != NULL) )
 		{
 			do_umount(false);
 
@@ -117,18 +123,27 @@
 				//sys_map_path(PKGLAUNCH_DIR "/PS3_GAME/USRDIR/cores", RETROARCH_DIR0 "/USRDIR/cores");
 				sys_map_path("/dev_bdvd/PS3_GAME/USRDIR/cores", RETROARCH_DIR0 "/USRDIR/cores");
 				sys_map_path("/app_home/PS3_GAME/USRDIR/cores", RETROARCH_DIR0 "/USRDIR/cores");
-			}
-			else if(file_exists(RETROARCH_DIR1))
-			{
-				//sys_map_path(PKGLAUNCH_DIR "/PS3_GAME/USRDIR/cores", RETROARCH_DIR1 "/USRDIR/cores");
-				sys_map_path("/dev_bdvd/PS3_GAME/USRDIR/cores", RETROARCH_DIR1 "/USRDIR/cores");
-				sys_map_path("/app_home/PS3_GAME/USRDIR/cores", RETROARCH_DIR1 "/USRDIR/cores");
+
+				force_copy(PKGLAUNCH_PS3_GAME "/USRDIR/retroarch.cce", (char*)PKGLAUNCH_PS3_GAME "/USRDIR/retroarch.cfg");
+				cellFsUnlink(PKGLAUNCH_PS3_GAME "/USRDIR/retroarch.cce");
 			}
 			else
 			{
-				//sys_map_path(PKGLAUNCH_DIR "/PS3_GAME/USRDIR/cores", RETROARCH_DIR2 "/USRDIR/cores");
-				sys_map_path("/dev_bdvd/PS3_GAME/USRDIR/cores", RETROARCH_DIR2 "/USRDIR/cores");
-				sys_map_path("/app_home/PS3_GAME/USRDIR/cores", RETROARCH_DIR2 "/USRDIR/cores");
+				if(file_exists(RETROARCH_DIR1))
+				{
+					//sys_map_path(PKGLAUNCH_DIR "/PS3_GAME/USRDIR/cores", RETROARCH_DIR1 "/USRDIR/cores");
+					sys_map_path("/dev_bdvd/PS3_GAME/USRDIR/cores", RETROARCH_DIR1 "/USRDIR/cores");
+					sys_map_path("/app_home/PS3_GAME/USRDIR/cores", RETROARCH_DIR1 "/USRDIR/cores");
+				}
+				else
+				{
+					//sys_map_path(PKGLAUNCH_DIR "/PS3_GAME/USRDIR/cores", RETROARCH_DIR2 "/USRDIR/cores");
+					sys_map_path("/dev_bdvd/PS3_GAME/USRDIR/cores", RETROARCH_DIR2 "/USRDIR/cores");
+					sys_map_path("/app_home/PS3_GAME/USRDIR/cores", RETROARCH_DIR2 "/USRDIR/cores");
+				}
+
+				force_copy(PKGLAUNCH_PS3_GAME "/USRDIR/retroarch.bak", (char*)PKGLAUNCH_PS3_GAME "/USRDIR/retroarch.cfg");
+				cellFsUnlink(PKGLAUNCH_PS3_GAME "/USRDIR/retroarch.bak");
 			}
 
 			// store rom path for PKGLAUNCH
@@ -170,7 +185,7 @@
 			cellFsUnlink(PS2_CLASSIC_ISO_CONFIG);
 			cellFsUnlink(PS2_CLASSIC_ISO_PATH);
 
-			if(file_copy(_path, (char*)PS2_CLASSIC_ISO_PATH, COPY_WHOLE_FILE) >= 0)
+			if(file_copy(_path, (char*)PS2_CLASSIC_ISO_PATH) >= 0)
 			{
 				copy_ps2config(temp, _path);
 

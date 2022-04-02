@@ -45,13 +45,13 @@ static void poll_start_play_time(void)
 		}
 	#endif
 
-		if(toggle_snd0 && webman_config->nosnd0) { toggle_snd0 = false; cellFsChmod((char*)"/dev_bdvd/PS3_GAME/SND0.AT3", NOSND); } /* disable SND0.AT3 on XMB */
+		if(toggle_snd0 && webman_config->nosnd0) { toggle_snd0 = false; cellFsChmod("/dev_bdvd/PS3_GAME/SND0.AT3", NOSND); } /* disable SND0.AT3 on XMB */
 	}
 	else if(gTick.tick == rTick.tick) /* the game started a moment ago */
 	{
 		cellRtcGetCurrentTick(&gTick);
 
-		if(!toggle_snd0 && webman_config->nosnd0) { toggle_snd0 = true; cellFsChmod((char*)"/dev_bdvd/PS3_GAME/SND0.AT3", MODE); } /* re-enable SND0.AT3 in-game */
+		if(!toggle_snd0 && webman_config->nosnd0) { toggle_snd0 = true; cellFsChmod("/dev_bdvd/PS3_GAME/SND0.AT3", MODE); } /* re-enable SND0.AT3 in-game */
 
 		close_ftp_sessions_idle();
 
@@ -59,6 +59,8 @@ static void poll_start_play_time(void)
 		// unmap gameboot audio
 		sys_map_path("/dev_flash/vsh/resource/gameboot_multi.ac3",  NULL);
 		sys_map_path("/dev_flash/vsh/resource/gameboot_stereo.ac3", NULL);
+	#endif
+	#ifdef PATCH_GAMEBOOT
 		patched_address1 = patched_address2 = patched_address3 = patched_address4 = BASE_PATCH_ADDRESS;
 	#endif
 
@@ -92,6 +94,7 @@ static void poll_start_play_time(void)
 			}
 		}
 	#endif
+		start_event(EVENT_INGAME);
 	}
 }
 
@@ -114,6 +117,19 @@ static void poll_thread(__attribute__((unused)) u64 arg)
 	old_fan = 0;
 	while(working)
 	{
+		#ifdef REMOVE_SYSCALLS
+		// check if syscalls were restored
+		if(syscalls_removed != CFW_SYSCALLS_REMOVED(TOC))
+		{
+			syscalls_removed = CFW_SYSCALLS_REMOVED(TOC);
+			#ifdef PS3MAPI
+			if(!syscalls_removed) restore_cfw_syscalls();
+			#else
+			if(!syscalls_removed) disable_signin_dialog();
+			#endif
+		}
+		#endif
+
 		// dynamic fan control
 		#include "fancontrol2.h"
 

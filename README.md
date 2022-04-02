@@ -13,17 +13,17 @@ in an easy and intuitive way. webMAN MOD is the result of the hard work of sever
 and artists that collaborated with development, knowledge, resources, feedback & ideas.
 
 ## Web Commands & General Documentation
-[https://www.psx-place.com/threads/webman-mod-web-commands.1508/](https://www.psx-place.com/threads/webman-mod-web-commands.1508/)
+[https://github.com/aldostools/webMAN-MOD/wiki](https://github.com/aldostools/webMAN-MOD/wiki)
 
 ## Current functionality
 ### General
-- Support on all custom firmwares with Cobra feature enabled (ver 4.46-4.87 CEX, DEX & DECR)
+- Support on all custom firmwares with Cobra feature enabled (ver 4.46-4.88 CEX, DEX & DECR)
 - Support on REBUG firmware with Cobra feature disabled (ver 4.84.2-4.86.1 CEX, DEX & DECR) 
 - Support on REBUG firmware with Mamba loaded via boot_plugins_nocobra_kernel.txt (ver 4.86.1 CEX & 4.84.2 DEX) 
-- Support on PS3HEN on 4.82-4.84 OFW CEX & DEX and 4.84-4.87 HFW
-- Support on classic custom firmware with Mamba loaded via IRISMAN (ver 3.41-4.87 CEX, DEX & DECR)
-- Support on classic custom firmware with Mamba/PRXLoader (ver 3.41-4.87 CEX, DEX & DECR)
-- Support on classic custom firmware with PRXLoader (ver 3.41-4.87 CEX, DEX & DECR)
+- Support on PS3HEN on 4.82-4.84 OFW CEX & DEX and 4.84-4.88 HFW
+- Support on classic custom firmware with Mamba loaded via IRISMAN (ver 3.41-4.88 CEX, DEX & DECR)
+- Support on classic custom firmware with Mamba/PRXLoader (ver 3.41-4.88 CEX, DEX & DECR)
+- Support on classic custom firmware with PRXLoader (ver 3.41-4.88 CEX, DEX & DECR)
 
 - All PS3 Models (including all fat, Slim 20xx, 21xx, 25xx, 3xxx & SuperSlims 4xxx) are supported via PS3HEN payload
 - All PS3 Models capable to downgrade to 3.56 or lower are supported via PS3Xploit Flash Writer (aka PS3Xploit 2.0)
@@ -67,7 +67,7 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - Game listing using localized title in PARAM.SFO
 
 #### Content organization & information display
-- Title ID can be displayed on XMB menu (next to the title or as "info" text)
+- Title ID can be displayed on XMB menu (next to the title or as "info" text) or press R2+O to show the info of the mounted game
 - Covers are shown using the Title ID found in the file name of the ISO or folder name (JB game).
 - Option for display original file name or title name from PARAM.SFO
 - Option for display covers as discs, ICON0.PNG or covers from multiMAN, IRISMAN, ManaGunZ repository or in the same folder of the ISO
@@ -82,13 +82,14 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - Display notifications with custom icons & sound
 
 #### Extended mount of game
+- Automatic launch of game when mounted from XMB keeping pressed the X button
 - Automatic focus to category column & disc icon based on content type
 - Support for multiCD PSXISO games stored as ISO in HDD0 / USB FAT32. Eject/Insert a USB0 device to mount the next CD
 - It can mount PSP games stored on exFAT/NTFS/ext2/3/4/NET devices without copy the file to the internal HDD (1.47.27) - Requires prepISO 1.27 or later
 - It can mount PS2 Classics games on PS2 Classic Launcher (.BIN.ENC)
 - It can mount PSX games with CD sector sizes: 2352, 2048, 2336, 2448, 2328, 2340, 2368
 - Automatic CONFIG creation for PS2ISOs and PS2 Classic using config database from ManaGunZ or the database of CONFIG created by the installer
-- Automatic patching of black listed PS2 demos (SCED***** & SLED*****)
+- Automatic patching of black listed PS2 demos (SCED***** & SLED*****, PS2 SOCOM games)
 - Scanning & launch of package files extracted to GAMEI folder on USB FAT32 & NET host. Folders' name can be title_id or content_id
 - Support for launch SELF applications via PKG/ROM Launcher or through the XMB icon: ★ app_home/PS3_GAME
 - Integrated external gameDATA allows installation of packages & game data on external USB drives
@@ -108,7 +109,7 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - Auto install / auto select PSP emulator for PSP games using decrypted MINIS.EDAT / MINIS2.EDAT
 
 #### File management & navigation
-- Improvements on File Manager (file & folder icons, links to navigate faster, mount ISO, mount net0/ or net1/, preview images, copy/paste/delete files & folders)
+- Improvements on File Manager (file & folder icons, links to navigate faster, mount ISO, mount net0/ or net1/, preview images, file truncation, copy/paste/delete files & folders)
 - Copy operations use shadow copy on hdd0 for faster copy operations
 - It can rip a game from disc to hdd0 or copy from hdd0 to usb000 or from usb00x to hdd0.
 - Shorter URL to access paths & files. Use "home" path in /setup.ps3 for search in a user defined folder.
@@ -117,6 +118,7 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - Folder size statistics & change permissions
 - Hex File Viewer (internal HDD/FAT32/NTFS/exFAT/ext2/3/4)
 - Experimental support for zip & unzip (rar, 7z, bz2, tgz, tar can be extracted). Requires PKGLAUNCH & app_home/PS3_GAME icon.
+- Unlock up to 8% more space on internal HDD using /unlockhdd.ps3 Thanks to 3141card (picard)
 
 #### Network features
 - Update to latest release from XMB
@@ -137,7 +139,7 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - Automatic remap to /dev_hdd0/packages on unmount (SELECT+O) allows to use Install All Packages on pkg files stored on HDD0
 - Support for auto-play on startup any supported ISO, game folder or auto-open an URL link. webMAN vanilla only can mount AUTOBOOT.ISO
 - Support for auto-fix games that require higher FW version (4.20 and later)
-- Support batch script automation at startup (dev_hdd0/boot_init.txt or dev_hdd0/autoexec.bat) or played at any time (/play.ps3/<script-file>.bat)
+- Support batch script automation at startup (dev_hdd0/boot_init.txt or dev_hdd0/autoexec.bat), when XMB is loaded (/dev_hdd0/onxmb.bat) or played at any time (/play.ps3/<script-file>.bat)
 - Launch mounted games with /play.ps3 command. Once a game is mounted via html, click on the displayed icon to launch the game on the PS3.
 - Execute XMB functions with /play.ps3 command. (e.g: /play.ps3?col=network&seg=seg_premo) <- this will start Remote Play server from XMB.
 - Multiple Web Commands interfaces via HTTP, FTP, PS3MAPI, file polling (dev_hdd0/tmp/wm_request)
@@ -147,15 +149,15 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - Support for auto-map libsound.sprx from /dev_hdd0/tmp
 - Support for enable/disable noBD patch needed to remarry BD drive
 - Support for relink identical files in /dev_hdd0/GAMES and /dev_hdd0/game using /stat.ps3<path>&id=<title_id>?fast
-- Support for auto-change of random or specific wallpaper and VSH resources like backgrounds, themes, coldboot_*.ac3, lines.qrc, canyon.qrc, earth.qrc when system starts.
+- Support for auto-change of random or specific wallpaper and VSH resources like backgrounds, themes, impose, coldboot_*.ac3, lines.qrc, canyon.qrc, earth.qrc when system starts.
 - A comprehensive set of web commands and features for customization. Link in [Web Commands Documentation](https://www.psx-place.com/threads/webman-mod-web-commands.1508/)
 
 #### Stealth features
+- Automatic block of Sign In to PSN while CFW syscalls are enabled (thanks to DeViL303 for the modded screen).
 - Support for dumping and spoofing IDPS/PSID/act.dat
 - Support for automatic or manual removal of CFW syscalls and spoof console id (IDPS/PSID)
 - "Offline" mode (blocks some PSN/tracking servers) and automatic restore when CFW syscalls are removed. Game updates still work in this mode. (v1.33.03)
 - Scan for games on the stealth folder "/video"
-- Auto unlock savedata during download & copy operations (removes account id, PSID & copy protection
 
 #### Safety & security features
 - Improved temperature monitoring (max & min fan speed, auto#2 mode, improved algorithm for dynamic fan control)
@@ -193,14 +195,16 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - Video REC plugin : Standalone plugin that records video from games. When used, webMAN MOD is unloaded to free memory.
 
 ## Addons
-- [ps3netsrv](https://downgit.github.io/#/home?url=https://github.com/aldostools/webMAN-MOD/tree/master/_Projects_/ps3netsrv) : Remote content distribution server for PC and linux platforms that uses Cobra's NETISO protocol for streaming of content
+- [Covers Pack for PS3 games](https://github.com/aldostools/Resources/releases/download/1.0/EP0001-BLES80608_00-COVERS0000000000.pkg)
+- [Covers Pack for PSX/PS2 games](https://github.com/aldostools/Resources/releases/download/1.0/EP0001-BLES80608_00-COVERS00000RETRO.pkg)
+
 - [prepISO](https://store.brewology.com/get/homebrew.php?id=310&fid=2188) : tool that scans content stored in exFAT/NTFS/ext2/3/4 devices and prepare the settings files needed by RAWSECISO plugin
+- [ps3netsrv](https://downgit.github.io/#/home?url=https://github.com/aldostools/webMAN-MOD/tree/master/_Projects_/ps3netsrv) : Remote content distribution server for PC and linux platforms that uses Cobra's NETISO protocol for streaming of content
 - [PKG/ROM Launcher](https://store.brewology.com/get/homebrew.php?id=310&fid=2183) : allows the execution of PS3 applications and ROMS via RetroArch. Requires that the debug icon "★ app_home/PS3_GAME" be present on XMB
 - [PS2CONFIG](https://store.brewology.com/get/homebrew.php?id=310&fid=2178) : Database of PS2 CONFIG files needed to improve the compatibility of certain PS2 games
 - [WM Themes](https://store.brewology.com/ahomebrew.php?brewid=310) : Set of packages that customize the look of the XMB icons used by webMAN MOD
 - [Reload XMB](https://store.brewology.com/get/homebrew.php?id=310&fid=2184) : PS3 application that forces the reload of XMB icons
-- [Boot MAMBA](https://github.com/aldostools/webMAN-MOD/releases) : Package that installs MAMBA payload for use on Rebug 4.84/4.85/4.86/4.87 with Cobra disabled
-- [MOVIAN.ISO](https://github.com/aldostools/webMAN-MOD/releases) : Custom ISO to launch MOVIAN
+- [Boot MAMBA](https://github.com/aldostools/webMAN-MOD/releases) : Package that installs MAMBA payload for use on Rebug 4.84/4.85/4.86/4.87/4.88 with Cobra disabled
 
 - [PS2 Classics Launcher](https://store.brewology.com/get/homebrew.php?id=310&fid=2187) : PS3 application required to launch PS2 Classics games in .BIN.ENC format
 - [PSP Remasters Launcher](https://store.brewology.com/get/homebrew.php?id=310&fid=2186) : PS3 application required to launch PSP Remaster games in ISO format
@@ -209,6 +213,7 @@ and artists that collaborated with development, knowledge, resources, feedback &
 - [RetroArch](https://store.brewology.com/ahomebrew.php?brewid=152) : Required to launch the emulators that run the classic games in ROM format
 - [MOVIAN](https://store.brewology.com/ahomebrew.php?brewid=196) : Required to play audio and videos in non-nantive formats like MKV
 - [multiMAN](https://store.brewology.com/ahomebrew.php?brewid=24) : Optional. Use for dump ISO, download covers, advanced file management
+- [IRISMAN](https://store.brewology.com/ahomebrew.php?brewid=250) : Optional. Use for dump ISO, download covers, advanced file management
 
 - webPAD : [http://pad.aldostools.org](http://pad.aldostools.org) - Online virtual game pad
 
@@ -238,18 +243,20 @@ Requirements for GNU/Linux:
 - NzV for PS3 Manager API (aka PS3MAPI), Mamba/PRX Loader & Mamba improvements
 - bguerville for ps3xploit, tools, web downloader & package installer modules and port of ntfslib
 - The team that ported NTFS library from PSL1ght to PS3 SDK (freddy38510, bguerville, Zar, deank, Joonie)
-- Mysis, who wrote some useful libs and did the reverse engineering of [VSH Exports functions](http://www.ps3devwiki.com/ps3/VSH#Exports)
-- 3141card for unlock HDD and VSH Menu POC & Littlebalup for his enhancement/new features
+- Mysis, who wrote some useful libs and did the reverse engineering of [VSH Exports functions](https://www.psdevwiki.com/ps3/VSH_Exports)
+- 3141card for unlock HDD, vsh stub-libs + header RE and for VSH Menu POC & Littlebalup for his enhancement/new features
 - jjolano (John Olano) for OpenFTP server
 - OsirisX for PS3XPAD and the source code needed for gamepad emulation
 - Berion & Brunolee for the graphics & icons
 - bucanero port of libraries for zip, rar, 7-zip, bz2, tgz, tar
 - lmirel port of libraries for exFAT
-- DeViL303 for ideas, gameboot mods, XML mods, help module (based on XMB offline documentation tool by xp3riments)
+- LuanTeles for the help file (based on XMB offline documentation tool by xp3riments & DeViL303)
+- DeViL303 for ideas, gameboot mods, Sign In blocker, XML mods
 - PSX-SCENE, PSX-PLACE, PLAYSTATIONHAX, PS3HAX & other scene websites/users, who translated, helped in the testing process
 
 Special thanks to Joonie, Habib & Rebug Team, flatz, haxxxen, Rancid-O, EvilNat, KW, naehrwert, MiralaTijera
 
+Thanks also to kozarovv, mrjaredbeta, agrippa, nifengyuexia and all other contributors & testers of PS2 CONFIGs.
 
 ## License
 ### webMAN MOD
@@ -266,6 +273,17 @@ the credits to the original authors are strictly required.
 It is NOT permitted to distribute modified versions with the same name
 of this software. A similar name or misleading name should NOT be used,
 to avoid confusion about the origin or the version in use.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+3. The names of the authors may not be used to endorse or promote products
+   derived from this software without specific prior written permission.
 
 For futher information about GPL v3, refer to:
 [https://www.gnu.org/licenses/gpl-3.0.en.html](https://www.gnu.org/licenses/gpl-3.0.en.html)
@@ -290,7 +308,7 @@ the software.
 
 
 
-(C) 2010-2021 multiMAN / webMAN by DeanK
+(C) 2010-2022 multiMAN / webMAN / sMAN / sLaunch / prepNTFS by DeanK
 
 Permission is hereby granted, free of charge, to any person
 obtaining a copy of this software and associated documentation files
