@@ -12,9 +12,6 @@ static void start_www(u64 conn_s_p)
 
 		if(conn_s_p == START_DAEMON)
 		{
-			if(file_exists("/dev_hdd0/ps3-updatelist.txt") || !payload_ps3hen)
-				vshnet_setUpdateUrl("http://127.0.0.1/dev_hdd0/ps3-updatelist.txt"); // custom update file
-
 			#ifndef ENGLISH_ONLY
 			update_language();
 			#endif
@@ -105,8 +102,8 @@ static void start_www(u64 conn_s_p)
 			}
 			else
 			{
-				cobra_config->spoof_version = 0x0487;
-				cobra_config->spoof_revision = 0x000109a5; // 4.86 = 0x00010938 // 4.85 = 0x0001091d
+				cobra_config->spoof_version = 0x0488;
+				cobra_config->spoof_revision = 0x000109f5; // 4.87 = 000109a5 // 4.86 = 0x00010938 // 4.85 = 0x0001091d
 			}
 
 			if( cobra_config->ps2softemu == 0 && cobra_get_ps2_emu_type() == PS2_EMU_SW )
@@ -119,10 +116,12 @@ static void start_www(u64 conn_s_p)
 			spoof_idps_psid();
 			#endif
 
-			if(!payload_ps3hen) { ENABLE_INGAME_SCREENSHOT }
-
 			#ifdef COBRA_ONLY
+			lock_psp_launchers();
+
 			#ifdef REMOVE_SYSCALLS
+			disable_signin_dialog();
+
 			if(webman_config->spp & 1) //remove syscalls & history
 			{
 				if(!payload_ps3hen) sys_ppu_thread_sleep(5); do_sleep = false;
@@ -146,6 +145,11 @@ static void start_www(u64 conn_s_p)
 			#endif
 			#endif //#ifdef COBRA_ONLY
 
+			if(!payload_ps3hen) { ENABLE_INGAME_SCREENSHOT }
+
+			// backup / restore act.bak -> act.dat
+			backup_act_dat();
+
 			if(do_sleep) sys_ppu_thread_sleep(1);
 
 			#ifdef COBRA_ONLY
@@ -155,6 +159,10 @@ static void start_www(u64 conn_s_p)
 			randomize_vsh_resources(true, templn);
 			#endif
 			#endif
+
+			wait_for_xmb();
+			if(file_exists("/dev_hdd0/ps3-updatelist.txt"))
+				vshnet_setUpdateUrl("http://127.0.0.1/dev_hdd0/ps3-updatelist.txt"); // custom update file
 
 			start_event(EVENT_ON_XMB);
 

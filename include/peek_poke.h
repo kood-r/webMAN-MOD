@@ -11,6 +11,8 @@
 #define SYSCALL8_OPCODE_PS3MAPI			0x7777
 #define PS3MAPI_OPCODE_LV1_POKE			0x1009
 
+#define CFW_SYSCALLS_REMOVED(a)			((lv2_peek_hen(a) & 0xFFFFFFFFFF000000) != 0x8000000000000000)
+
 /////////////////// LV1 PEEK //////////////////////
 static u64 lv1_peek_cfw(u64 addr)
 {
@@ -46,13 +48,13 @@ static u64 lv2_peek_cfw(u64 addr) //sc8 + LV2_OFFSET_ON_LV1
 	return (u64) p1;
 }
 
-#ifdef COBRA_ONLY
 static u64 lv2_peek_hen(u64 addr) //sc6
 {
 	system_call_1(SC_PEEK_LV2, addr);
 	return (u64) p1;
 }
 
+#ifdef COBRA_ONLY
 static u64 lv2_peek_ps3mapi(u64 addr) //sc8 + ps3mapi
 {
 	system_call_3(SC_COBRA_SYSCALL8, SYSCALL8_OPCODE_PS3MAPI, PS3MAPI_OPCODE_LV2_PEEK, addr);
@@ -123,6 +125,7 @@ static u64 lv1_peek_hen(u64 addr)
 ///////////////////////////////////////////////////
 #endif
 
+#ifndef LITE_EDITION
 /***********************************************************************
 * lv2 peek 32 bit
 ***********************************************************************/
@@ -139,6 +142,7 @@ static void lv2_poke_32(u64 addr, u32 value)
 	u64 value_org = peekq(addr);
 	pokeq(addr, (value_org & 0xFFFFFFFFULL) | (((u64)value) <<32));
 }
+#endif
 
 #ifndef COBRA_ONLY
 static inline void remove_lv2_memory_protection(void)
@@ -161,9 +165,9 @@ static inline void remove_lv2_memory_protection(void)
 		HV_START_OFFSET = HV_START_OFFSET_430; // same for 4.30-4.53
 	}
 	else
-	if(c_firmware>=4.55f /*&& c_firmware<=4.84f*/)
+	if(c_firmware>=4.55f /*&& c_firmware<=4.88f*/)
 	{
-		HV_START_OFFSET = HV_START_OFFSET_455; // same for 4.55-4.84
+		HV_START_OFFSET = HV_START_OFFSET_455; // same for 4.55-4.88
 	}
 
 	if(!HV_START_OFFSET) return;
@@ -178,7 +182,7 @@ static void install_peek_poke(void)
 {
 	remove_lv2_memory_protection();
 
-	if(c_firmware>=4.30f /*&& c_firmware<=4.84f*/)
+	if(c_firmware>=4.30f /*&& c_firmware<=4.88f*/)
 	{	// add lv2 peek/poke + lv1 peek/poke
 		pokeq(0x800000000000171CULL + 0x00, 0x7C0802A6F8010010ULL);
 		pokeq(0x800000000000171CULL + 0x08, 0x396000B644000022ULL);
@@ -225,8 +229,8 @@ static void add_to_map(const char *path1, const char *path2)
 			if(IS(file_to_map[n].src, path1)) return;
 		}
 
-		sprintf(file_to_map[max_mapped].src, "%s", path1);
-		sprintf(file_to_map[max_mapped].dst, "%s", path2);
+		strcpy(file_to_map[max_mapped].src, path1);
+		strcpy(file_to_map[max_mapped].dst, path2);
 		max_mapped++;
 	}
 }
@@ -293,7 +297,7 @@ static bool isHEX(const char *value)
 static u16 Hex2Bin(const char *src, char *out)
 {
 	char *target = out;
-	char value[3]; value[2] = NULL;
+	char value[3]; value[2] = '\0';
 	if(islike(src, "0x")) src += 2;
 	while(*src && src[1])
 	{
@@ -305,5 +309,24 @@ static u16 Hex2Bin(const char *src, char *out)
 		src += 2;
 	}
 	return (target - out);
+}
+#endif
+
+#if defined(USE_INTERNAL_NTFS_PLUGIN) || defined(NET_SUPPORT) || defined(USE_NTFS) || defined(DEBUG_MEM)
+static void memcpy64(void *dst, void *src, int n)
+{
+	uint8_t p = n & 7;
+
+	n >>= 3;
+	uint64_t *d = (uint64_t *) dst;
+	uint64_t *s = (uint64_t *) src;
+	while (n--) *d++ = *s++;
+
+	if(p)
+	{
+		char *m = (char *) d;
+		char *c = (char *) s;
+		while (p--) *m++ = *c++;
+	}
 }
 #endif

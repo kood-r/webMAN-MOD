@@ -1,6 +1,5 @@
 #define LAUNCHPAD_MODE			2
-#define LAUNCHPAD_COVER_SVR		"http://xmbmods.co/wmlp/covers"
-//#define LAUNCHPAD_COVER_SVR	"http://ps3extra.free.fr/covers"
+#define LAUNCHPAD_COVER_SVR		"http://devil303.com/wmlp/covers"
 
 #ifdef LAUNCHPAD
 
@@ -24,7 +23,7 @@ static int add_launchpad_entry(char *tempstr, char *templn, const char *url, cha
 	if(*title_id == NULL) sprintf(title_id, "NOID");
 
 	// fix &
-	if(strstr(templn, "&"))
+	if(strchr(templn, '&'))
 	{
 		size_t j = 0;
 		for(size_t i = 0; templn[i]; i++, j++)

@@ -141,7 +141,7 @@ typedef struct
 	u8 profile;          // User profile
 	char uaccount[9];    // default  user account (not used)
 	u8 admin_mode;       // 0=USER MODE, 1=ADMIN MODE / requires !(webman_config->combo & SYS_ADMIN)
-	u8 unlock_savedata;  // 0=none, 1=auto unlock savedata on file operations (copy/ftp/download)
+	u8 unlock_savedata;  // 0=none, 1=auto unlock savedata on file operations (copy/ftp/download) // deprecated //
 
 	u8 padding10[4];
 
@@ -185,7 +185,7 @@ typedef struct
 	//u8 theme_id;		// [5]: 0=random, 1-255: select specific #.p3t in /dev_hdd0/tmp/theme on each boot
 	//u8 last_theme_id;	// [6]: 0=none, 1-255: last selected theme (used to prevent install the current theme again)
 	//u8 impose_id;		// [7]: 0=random, 1-255: select specific #.rco in /dev_hdd0/tmp/impose on each boot
-						// [8]: reserved
+	//u8 psn_icons_id	// [8]: 0=random, 1-255: select specific #.rco in /dev_hdd0/tmp/psn_icons on each boot
 						// [9]: reserved
 						//[10]: reserved
 						//[11]: reserved

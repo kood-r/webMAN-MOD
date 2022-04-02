@@ -3,19 +3,20 @@
 #if defined(COBRA_ONLY) || defined(REX_ONLY)
 static void swap_file(const char *path, const char *curfile, const char *rento, const char *newfile)
 {
-	char file1[64], file2[64], file3[64];
+	char file1[64], file2[64];
 
-	sprintf(file1, "%s%s", path, newfile); strncpy(file1, "/dev_flash", 10);
+	sprintf(file1, "%s%s%s", "/dev_flash", path + 10, newfile);
 
 	if(file_exists(file1))
 	{
-		sprintf(file1, "%s%s", path, curfile);
-		sprintf(file2, "%s%s", path, rento);
-		sprintf(file3, "%s%s", path, newfile);
-
 		mount_device("/dev_blind", NULL, NULL);
+		sprintf(file1, "%s%s", path, curfile);
+
+		sprintf(file2, "%s%s", path, rento);
 		cellFsRename(file1, file2);
-		cellFsRename(file3, file1);
+
+		sprintf(file2, "%s%s", path, newfile);
+		cellFsRename(file2, file1);
 	}
 }
 #endif
@@ -140,7 +141,7 @@ static bool toggle_cobra(void)
 	if( (file_exists(REBUG_COBRA_PATH "stage2.cex")) /* &&
 		(file_exists(REBUG_COBRA_PATH "stage2.dex")) */)
 	{
-		show_msg("REBUG COBRA is active!\n"
+		show_msg("COBRA is active!\n"
 				 "Deactivating COBRA...");
 
 		save_file(TMP_DIR "/loadoptical", "SCE\0", 4); // Force load PS2 discs on BC consoles with Cobra 8.x
@@ -154,7 +155,7 @@ static bool toggle_cobra(void)
 	else if((file_exists(REBUG_COBRA_PATH "stage2.cex.bak")) /* &&
 			(file_exists(REBUG_COBRA_PATH "stage2.dex.bak")) */)
 	{
-		show_msg("REBUG COBRA is inactive!\n"
+		show_msg("COBRA is inactive!\n"
 				 "Activating COBRA...");
 
 		cellFsRename(REBUG_COBRA_PATH "stage2.cex.bak", REBUG_COBRA_PATH "stage2.cex");
@@ -217,15 +218,15 @@ static void toggle_ps2emu(void)
 
 		// ---- Backup PS2Emus to Rebug Toolbox folder ----
 		if(not_exists(REBUG_TOOLBOX "ps2_netemu.self.cobra"))
-			 _file_copy((char*)PS2_EMU_PATH  "ps2_netemu.self",
+			 force_copy(PS2_EMU_PATH  "ps2_netemu.self",
 						(char*)REBUG_TOOLBOX "ps2_netemu.self.cobra");
 
 		if(not_exists(REBUG_TOOLBOX "ps2_gxemu.self.cobra"))
-			 _file_copy((char*)PS2_EMU_PATH  "ps2_gxemu.self",
+			 force_copy(PS2_EMU_PATH  "ps2_gxemu.self",
 						(char*)REBUG_TOOLBOX "ps2_gxemu.self.cobra");
 
 		if(not_exists(REBUG_TOOLBOX "ps2_emu.self.cobra"))
-			 _file_copy((char*)PS2_EMU_PATH  "ps2_emu.self",
+			 force_copy(PS2_EMU_PATH  "ps2_emu.self",
 						(char*)REBUG_TOOLBOX "ps2_emu.self.cobra");
 
 		// ---- Swap ps2_netemu.self ----
@@ -237,7 +238,7 @@ static void toggle_ps2emu(void)
 									(char*)"Switching to custom ps2emu...");
 
 		if((size1 > 0) && (size2 > 0))
-			_file_copy((size1==size2) ? (char*)REBUG_TOOLBOX "ps2_netemu.self.cobra" :
+			force_copy((size1==size2) ? (char*)REBUG_TOOLBOX "ps2_netemu.self.cobra" :
 										(char*)REBUG_TOOLBOX "ps2_netemu.self",
 										(char*)PS2_EMU_PATH  "ps2_netemu.self");
 
@@ -247,7 +248,7 @@ static void toggle_ps2emu(void)
 		if( cellFsStat(REBUG_TOOLBOX "ps2_gxemu.self", &s) == CELL_FS_SUCCEEDED ) size2 = s.st_size;
 
 		if((size1 > 0) && (size2 > 0))
-			_file_copy((size1==size2) ? (char*)REBUG_TOOLBOX "ps2_gxemu.self.cobra" :
+			force_copy((size1==size2) ? (char*)REBUG_TOOLBOX "ps2_gxemu.self.cobra" :
 										(char*)REBUG_TOOLBOX "ps2_gxemu.self",
 										(char*)PS2_EMU_PATH  "ps2_gxemu.self");
 
@@ -257,7 +258,7 @@ static void toggle_ps2emu(void)
 		if( cellFsStat(REBUG_TOOLBOX "ps2_emu.self", &s) == CELL_FS_SUCCEEDED ) size2 = s.st_size;
 
 		if((size1 > 0) && (size2 > 0))
-			_file_copy((size1==size2) ? (char*)REBUG_TOOLBOX "ps2_emu.self.cobra" :
+			force_copy((size1==size2) ? (char*)REBUG_TOOLBOX "ps2_emu.self.cobra" :
 										(char*)REBUG_TOOLBOX "ps2_emu.self",
 										(char*)PS2_EMU_PATH  "ps2_emu.self");
 	}

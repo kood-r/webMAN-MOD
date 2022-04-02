@@ -18,7 +18,7 @@ static void enable_ps2netemu_cobra(int emu)
 #ifdef SPOOF_CONSOLEID
 	if ((eid0_idps[0] & 0x00000000000000FF) > 0x04) return; // 0x01 = CECH-A*, 0x02 = CECH-B, 0x03 = CECH-C, 0x04 = CECH-E
 #endif
-	int status = get_cobra_ps2netemu_status(); // 0 = ps2emu, 1 = ps2_netemu
+	int status = get_cobra_ps2netemu_status(); // 0 = default ps2 emulator, 1 = ps2_netemu
 
 	if(status < 0 || status == emu) return;
 
@@ -38,7 +38,7 @@ static void copy_ps2icon(char *imgfile, const char *_path)
 	sprintf(imgfile, "%s.bak", PS2_CLASSIC_ISO_ICON);
 
 	if(not_exists(imgfile))
-		_file_copy(pic, imgfile);
+		force_copy(pic, imgfile);
 
 	int len = sprintf(imgfile, "%s.png", _path); len -= 12;
 	if(not_exists(imgfile)) sprintf(imgfile, "%s.PNG", _path);
@@ -50,7 +50,7 @@ static void copy_ps2icon(char *imgfile, const char *_path)
 	else
 		sprintf(imgfile, "%s.bak", PS2_CLASSIC_ISO_ICON);
 
-	_file_copy(imgfile, pic);
+	force_copy(imgfile, pic);
 
 	for(u8 i = 0; i <= 2; i++)
 	{
@@ -59,7 +59,7 @@ static void copy_ps2icon(char *imgfile, const char *_path)
 		if(not_exists(imgfile))
 		{
 			sprintf(pic, "%s/PIC%i.PNG", PS2_CLASSIC_LAUCHER_DIR, i);
-			_file_copy(pic, imgfile);
+			force_copy(pic, imgfile);
 		}
 
 		// get game picture from /PS2ISO
@@ -70,11 +70,11 @@ static void copy_ps2icon(char *imgfile, const char *_path)
 		sprintf(pic, "%s/PIC%i.PNG", PS2_CLASSIC_LAUCHER_DIR, i);
 		cellFsUnlink(pic);
 		if(file_exists(imgfile))
-			_file_copy(imgfile, pic);
+			force_copy(imgfile, pic);
 		else
 		{
 			sprintf(imgfile, "%s/PIC%i.PNG.bak", PS2_CLASSIC_LAUCHER_DIR, i); // restore original
-			_file_copy(imgfile, pic);
+			force_copy(imgfile, pic);
 		}
 	}
 }
@@ -135,9 +135,50 @@ static void get_ps_titleid_from_path(char *title_id, const char *_path)
 		sprintf(title_id, "%.9s", game_id); // SLxS00000
 }
 
+#ifdef COBRA_ONLY
+ #ifndef LITE_EDITION
+static bool copy_ps2config_iso(char *entry_name, char *_path)
+{
+	char *tempID = to_upper(entry_name);
+	if (
+		(tempID[1] == 'L' || tempID[1] == 'C') &&
+		(tempID[2] == 'U' || tempID[2] == 'E' || tempID[2] == 'P' || tempID[2] == 'A' || tempID[2] == 'H' || tempID[2] == 'J' || tempID[2] == 'K') &&
+		(tempID[3] == 'S' || tempID[3] == 'M' || tempID[3] == 'J' || tempID[3] == 'A') &&
+		(tempID[4] == '_' && tempID[8] == '.') &&
+		ISDIGIT(tempID[5]) &&
+		ISDIGIT(tempID[6]) &&
+		ISDIGIT(tempID[7]) &&
+		ISDIGIT(tempID[9])
+	   )
+	{
+		char temp[STD_PATH_LEN];
+		sprintf(temp, "%s/%s.CONFIG", PS2CONFIG_PATH, tempID);
+		if(file_exists(temp))
+			force_copy(temp, _path);
+		else
+		{
+			const char *config_path[4] = {"CUSTOM", "NET", "GX", "SOFT"};
+			for(u8 i = 0; i < 4; i++)
+			{
+				sprintf(temp, "%s/CONFIG/%s/%s.CONFIG", PS2CONFIG_PATH, config_path[i], tempID);
+				if(file_exists(temp)) {force_copy(temp, _path); return true;}
+				sprintf(temp, "%s/sys/CONFIG/%s/%s.CONFIG", MANAGUNZ, config_path[i], tempID);
+				if(file_exists(temp)) {force_copy(temp, _path); return true;}
+			}
+		}
+		return true;
+	}
+	return false;
+}
+ #endif
+#endif
+
 static void copy_ps2config(char *config, const char *_path)
 {
+	char config_path[STD_PATH_LEN];
 	size_t len = sprintf(config, "%s.CONFIG", _path); // <name>.BIN.ENC.CONFIG
+	strcpy(config_path, config);
+
 	if(not_exists(config) && len > 15) sprintf(config + len - 15, ".CONFIG"); // remove .BIN.ENC
 	if(not_exists(config))
 	{
@@ -154,7 +195,9 @@ static void copy_ps2config(char *config, const char *_path)
 	}
 
 	cellFsUnlink(PS2_CLASSIC_ISO_CONFIG);
-	_file_copy(config, (char*)PS2_CLASSIC_ISO_CONFIG);
+	force_copy(config, (char*)PS2_CLASSIC_ISO_CONFIG);
+
+	if(!webman_config->ps2config && not_exists(config_path)) force_copy(config, config_path);
 }
 
 static void copy_ps2savedata(char *vme, const char *_path)
@@ -177,7 +220,7 @@ static void copy_ps2savedata(char *vme, const char *_path)
 			if(file_exists(vme))
 			{
 				cellFsRename(savedata_vme, savedata_bak); // backup default vme
-				_file_copy(vme, savedata_vme);
+				force_copy(vme, savedata_vme);
 			}
 			else if(file_exists(savedata_bak))
 			{
@@ -188,7 +231,7 @@ static void copy_ps2savedata(char *vme, const char *_path)
 			len = sprintf(vme, "%s", savedata_vme); vme[len - 5] = '1' - i;
 
 			if(not_exists(vme))
-				_file_copy(savedata_vme, vme);
+				force_copy(savedata_vme, vme);
 		}
 	}
 }

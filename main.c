@@ -32,56 +32,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-#include "flags.h"
 #include "types.h"
-#include "include/timer.h"
-
-#ifdef REX_ONLY
- #ifndef DEX_SUPPORT
- #define DEX_SUPPORT
- #endif
-#endif
-
-#ifdef PKG_LAUNCHER
- #define MOUNT_ROMS
- #define MOUNT_GAMEI
-#endif
-
-#ifdef COBRA_ONLY
- #ifndef LITE_EDITION
-  #define NET_SUPPORT
-  #define USE_INTERNAL_NET_PLUGIN
- #else
-  #undef VISUALIZERS
-  #undef NET_SUPPORT
-  #undef USE_INTERNAL_NET_PLUGIN
- #endif
- #define USE_INTERNAL_NTFS_PLUGIN
-#else
- #undef WM_PROXY_SPRX
- #undef PS3MAPI
- #undef MOUNT_ROMS
- #undef MOUNT_GAMEI
- #undef PKG_LAUNCHER
- #undef PHOTO_GUI
- #undef VISUALIZERS
- #undef NET_SUPPORT
- #undef USE_INTERNAL_NET_PLUGIN
- #undef USE_INTERNAL_NTFS_PLUGIN
-#endif
-
-#ifdef LAST_FIRMWARE_ONLY
- #undef FIX_GAME
-#endif
-
-#ifndef WM_REQUEST
- #undef WM_CUSTOM_COMBO
- #undef PHOTO_GUI
-#endif
-
-#ifndef LAUNCHPAD
- #undef PHOTO_GUI
-#endif
+#include "include/flags.h"
 
 #define IS_ON_XMB		(GetCurrentRunningMode() == 0)
 #define IS_INGAME		(GetCurrentRunningMode() != 0)
@@ -92,7 +44,6 @@
 #include "cobra/storage.h"
 #include "vsh/game_plugin.h"
 #include "vsh/netctl_main.h"
-#include "vsh/xregistry.h"
 #include "vsh/vsh.h"
 #include "vsh/vshnet.h"
 #include "vsh/vshmain.h"
@@ -101,6 +52,7 @@
 #include "vsh/explore_plugin.h"
 #include "vsh/paf.h"
 
+#include "include/timer.h"
 #include "include/thread.h"
 #include "include/paths.h"
 
@@ -151,7 +103,7 @@ SYS_MODULE_STOP(wwwd_stop);
 SYS_MODULE_EXIT(wwwd_stop);
 
 #define WM_APPNAME			"webMAN"
-#define WM_VERSION			"1.47.35 MOD"
+#define WM_VERSION			"1.47.39 MOD"
 #define WM_APP_VERSION		WM_APPNAME " " WM_VERSION
 #define WEBMAN_MOD			WM_APPNAME " MOD"
 
@@ -279,7 +231,8 @@ enum get_name_options
 {
 	NO_EXT    = 0,
 	GET_WMTMP = 1,
-	NO_PATH   = 2,
+	WM_COVERS = 2,
+	NO_PATH   = 3,
 };
 
 enum is_binary_options
@@ -327,6 +280,10 @@ static bool script_running = false;
 static char fw_version[8] = "4.xx";
 static char local_ip[16] = "127.0.0.1";
 
+#ifdef MOUNT_ROMS
+static char *ROMS_EXTENSIONS = NULL;
+#endif
+
 static void show_msg(const char *text);
 static void show_status(const char *label, const char *status);
 static void sys_get_cobra_version(void);
@@ -337,12 +294,16 @@ static u8 unlock_param_sfo(const char *param_sfo, unsigned char *mem, u16 sfo_si
 static bool not_exists(const char* path);
 static bool file_exists(const char* path);
 static bool isDir(const char* path);
-static void _file_copy(char *file1, char *file2);
+static void force_copy(const char *file1, char *file2);
 static int add_breadcrumb_trail(char *pbuffer, const char *param);
 static int add_breadcrumb_trail2(char *pbuffer, const char *label, const char *param);
-static char *get_filename(const char *path);
+static char *remove_filename(const char *path);
 
-#ifdef PS3MAPI
+#ifndef LITE_EDITION
+static void parse_script(const char *script_file);
+#endif
+
+#ifdef PATCH_GAMEBOOT
 static void patch_gameboot(u8 boot_type);
 #endif
 
@@ -357,6 +318,7 @@ int wait_for(const char *path, u8 timeout);
 #include "include/string.h"
 #include "include/wm_config.h"
 #include "include/html.h"
+#include "include/xregistry.h"
 #include "include/peek_poke.h"
 #include "include/hdd_unlock_space.h"
 #include "include/idps.h"
@@ -380,8 +342,6 @@ static int prepNTFS(u8 clear);
 
 int wwwd_start(size_t args, void *argp);
 int wwwd_stop(void);
-static void stop_prx_module(void);
-static void unload_prx_module(void);
 
 #ifdef REMOVE_SYSCALLS
 static void remove_cfw_syscalls(bool keep_ccapi);
@@ -447,10 +407,12 @@ static u8 mount_unk = EMU_OFF;
 
 #include "include/gamedata.h"
 
+#include "include/script.h"
 #include "include/debug_mem.h"
 #include "include/fix_game.h"
 #include "include/ftp.h"
 #include "include/ps3mapi.h"
+#include "include/ps3mapi_server.h"
 #include "include/stealth.h"
 #include "include/process.h"
 #include "include/video_rec.h"
@@ -467,7 +429,6 @@ static u8 mount_unk = EMU_OFF;
 
 #include "include/patch_gameboot.h"
 #include "include/patch_ps2demo.h"
-#include "include/script.h"
 #include "include/_mount.h"
 #include "include/file_manager.h"
 
@@ -488,20 +449,31 @@ static void wwwd_thread(u64 arg)
 	//WebmanCfg *webman_config = (WebmanCfg*) wmconfig;
 	read_settings();
 
-#ifdef VISUALIZERS
+#ifdef COBRA_ONLY
+	#ifdef VISUALIZERS
 	map_vsh_resource(4, MAP_SELECTED, html_base_path, false); // coldboot_*.ac3
 	map_vsh_resource(3, MAP_SELECTED, html_base_path, false); // lines.qrc
 	map_vsh_resource(7, MAP_SELECTED, html_base_path, false); // impose_plugin.rco
+	map_vsh_resource(8, MAP_SELECTED, html_base_path, false); // xmb_plugin_normal.rco + xmb_ingame.rco
 	*html_base_path = NULL;
-#endif
+	#endif
 
-#ifdef COBRA_ONLY
 	map_patched_modules();
 #endif
 
 	if(webman_config->blind) enable_dev_blind(NO_MSG);
 
 	set_buffer_sizes(webman_config->foot);
+
+	#ifdef MOUNT_ROMS
+	size_t fsize = file_ssize(WMROMS_EXTENSIONS);
+	if((fsize > 0) && (fsize <= 1024))
+	{
+		ROMS_EXTENSIONS = malloc(fsize);
+		read_file(WMROMS_EXTENSIONS, ROMS_EXTENSIONS, fsize, 0);
+	}
+	if(!ROMS_EXTENSIONS) ROMS_EXTENSIONS = (char *)".BIN.ISO.CUE.CCD.CHD.ZIP.7Z.GBA.NES.GB.GBC.MD.SMD.GEN.SMS.GG.SG.IOS.FLAC.NGP.NGC.PCE.VB.VBOY.WS.WSC.FDS.EXE.WAD.IWAD.SMC.FIG.SFC.SWC.A26.PAK.LUA.PRG.M3U.COM.BAT";
+	#endif
 
 #ifdef COPY_PS3
 	memset(cp_path, 0, sizeof(cp_path));
@@ -583,14 +555,14 @@ relisten:
 	ssend(debug_s, "Listening on port 80...");
 #endif
 
-	if(working) list_s = slisten(WWWPORT, WWW_BACKLOG);
-	else goto end;
+	if(!working) goto end;
+
+	list_s = slisten(WWWPORT, WWW_BACKLOG);
 
 	if(list_s < 0)
 	{
 		sys_ppu_thread_sleep(1);
-		if(working) goto relisten;
-		else goto end;
+		goto relisten;
 	}
 
 	active_socket[1] = list_s;
@@ -605,38 +577,46 @@ relisten:
 
 		while(working)
 		{
-			timeout = 0;
-			while((loading_html > MAX_WWW_THREADS) && working)
+			// wait for free thread
+			for(timeout = 0; loading_html > MAX_WWW_THREADS; timeout++)
 			{
-				sys_ppu_thread_usleep(40000);
-				if(++timeout > 250) {loading_html = 0; sclose(&list_s); goto relisten;} // continue after 10 seconds
+				if(!working) goto end;
+				if(timeout > 200)
+				{
+					// respawn http after wait for 10 seconds
+					sys_net_abort_socket(list_s, SYS_NET_ABORT_STRICT_CHECK);
+					sys_ppu_thread_sleep(1);
+					sclose(&list_s);
+
+					loading_html = 0;
+					goto relisten;
+				}
+				sys_ppu_thread_usleep(50000);
 			}
 
 			if(!working) goto end;
 
 			if((conn_s = accept(list_s, NULL, NULL)) >= 0)
 			{
-				loading_html++;
+				if(!working) {sclose(&conn_s); break;}
 
 				#ifdef USE_DEBUG
 				ssend(debug_s, "*** Incoming connection... ");
 				#endif
 
-				sys_ppu_thread_t t_id;
+				loading_html++;
 
-				if(working) sys_ppu_thread_create(&t_id, handleclient_www, (u64)conn_s, THREAD_PRIO, THREAD_STACK_SIZE_WEB_CLIENT, SYS_PPU_THREAD_CREATE_NORMAL, THREAD_NAME_WEB);
-				else {sclose(&conn_s); break;}
+				sys_ppu_thread_t t_id;
+				sys_ppu_thread_create(&t_id, handleclient_www, (u64)conn_s, THREAD_PRIO, THREAD_STACK_SIZE_WEB_CLIENT, SYS_PPU_THREAD_CREATE_NORMAL, THREAD_NAME_WEB);
 			}
-			else
-			if((sys_net_errno == SYS_NET_EBADF) || (sys_net_errno == SYS_NET_ENETDOWN))
+			else if((sys_net_errno == SYS_NET_EBADF) || (sys_net_errno == SYS_NET_ENETDOWN))
 			{
 				sclose(&list_s);
-				if(working) goto relisten;
-				else break;
+				goto relisten;
 			}
 		}
-
 	}
+
 end:
 	sclose(&list_s);
 	sys_ppu_thread_exit(0);
@@ -682,21 +662,6 @@ static void wwwd_stop_thread(u64 arg)
 	while(refreshing_xml) sys_ppu_thread_usleep(500000);
 
 	u64 exit_code;
-
-/*
-	sys_ppu_thread_t t_id;
-
-	#ifndef LITE_EDITION
-	sys_ppu_thread_create(&t_id, netiso_stop_thread, NULL, THREAD_PRIO_STOP, THREAD_STACK_SIZE_STOP_THREAD, SYS_PPU_THREAD_CREATE_JOINABLE, STOP_THREAD_NAME);
-	sys_ppu_thread_join(t_id, &exit_code);
-	#endif
-
-	sys_ppu_thread_create(&t_id, rawseciso_stop_thread, NULL, THREAD_PRIO_STOP, THREAD_STACK_SIZE_STOP_THREAD, SYS_PPU_THREAD_CREATE_JOINABLE, STOP_THREAD_NAME);
-	sys_ppu_thread_join(t_id, &exit_code);
-
-	while(netiso_loaded || rawseciso_loaded) {sys_ppu_thread_usleep(100000);}
-*/
-
 	sys_ppu_thread_join(thread_id_wwwd, &exit_code);
 
 	if(thread_id_ftpd != SYS_PPU_THREAD_NONE)
@@ -725,23 +690,38 @@ static void wwwd_stop_thread(u64 arg)
 			sys_ppu_thread_join(thread_id_poll, &exit_code);
 		}
 	}
+/*
+	sys_ppu_thread_t t_id;
 
+	#ifndef LITE_EDITION
+	sys_ppu_thread_create(&t_id, netiso_stop_thread, NULL, THREAD_PRIO_STOP, THREAD_STACK_SIZE_STOP_THREAD, SYS_PPU_THREAD_CREATE_JOINABLE, STOP_THREAD_NAME);
+	sys_ppu_thread_join(t_id, &exit_code);
+	#endif
+
+	sys_ppu_thread_create(&t_id, rawseciso_stop_thread, NULL, THREAD_PRIO_STOP, THREAD_STACK_SIZE_STOP_THREAD, SYS_PPU_THREAD_CREATE_JOINABLE, STOP_THREAD_NAME);
+	sys_ppu_thread_join(t_id, &exit_code);
+
+	while(netiso_loaded || rawseciso_loaded) {sys_ppu_thread_usleep(100000);}
+*/
 	sys_ppu_thread_exit(0);
 }
 
 int wwwd_stop(void)
 {
 	sys_ppu_thread_t t_id;
-	int ret = sys_ppu_thread_create(&t_id, wwwd_stop_thread, NULL, THREAD_PRIO_STOP, THREAD_STACK_SIZE_STOP_THREAD, SYS_PPU_THREAD_CREATE_JOINABLE, STOP_THREAD_NAME);
-
 	u64 exit_code;
+
+	int ret = sys_ppu_thread_create(&t_id, wwwd_stop_thread, NULL, THREAD_PRIO_STOP, THREAD_STACK_SIZE_STOP_THREAD, SYS_PPU_THREAD_CREATE_JOINABLE, STOP_THREAD_NAME);
 	if (ret == 0) sys_ppu_thread_join(t_id, &exit_code);
 
 	sys_ppu_thread_usleep(500000);
 
-	unload_prx_module();
+	#ifdef MOUNT_ROMS
+	if(ROMS_EXTENSIONS) free(ROMS_EXTENSIONS);
+	#endif
+
+	finalize_module();
 
 	_sys_ppu_thread_exit(0);
-
 	return SYS_PRX_STOP_OK;
 }

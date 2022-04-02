@@ -252,81 +252,6 @@ static char COVERS_PATH[100];//		= "";
 #define STR_RBGNORM		"NORM MODE TOGGLE"
 #define STR_RBGMENU		"MENU TOGGLE"
 
-#ifdef DEBUG_XREGISTRY
-static u32 get_xreg_value(const char *key, u32 new_value, char *str_value, bool read_only)
-{
-	int reg = NONE;
-	u32 reg_value = new_value;
-	u16 off_string, len_data, len_string;
-	u64 r;
-	char string[256];
-
-	if(cellFsOpen("/dev_flash2/etc/xRegistry.sys", CELL_FS_O_RDONLY, &reg, NULL, 0) != CELL_FS_SUCCEEDED || reg == NONE)
-	{
-		return reg_value;
-	}
-
-	CellFsStat stat;
-	cellFsStat("/dev_flash2/etc/xRegistry.sys", &stat);
-	u64 entry_offset = 0x10000;
-
-	while(true)
-	{
-	//// Data entries ////
-		//unk
-		entry_offset += 2;
-
-		//relative entry offset
-		cellFsLseek(reg, entry_offset, 0, &r);
-		cellFsRead(reg, &off_string, 2, &r);
-		entry_offset += 4;
-
-		//data lenght
-		cellFsReadWithOffset(reg, entry_offset, &len_data, 2, &r);
-		entry_offset += 3;
-
-	//// String Entries ////
-		off_string += 0x12;
-
-		//string length
-		cellFsReadWithOffset(reg, off_string, &len_string, 2, &r);
-		off_string += 3;
-
-		//string
-		memset(string, 0, sizeof(string));
-		cellFsReadWithOffset(reg, off_string, string, len_string, &r);
-
-		//Find key
-		if(IS(string, key))
-		{
-			if(read_only)
-			{
-				if(len_data == 4)
-					cellFsReadWithOffset(reg, entry_offset, &reg_value, 4, &r);
-				else
-					cellFsReadWithOffset(reg, entry_offset, str_value, len_data, &r);
-			}
-			else
-			{
-				if(len_data == 4)
-					cellFsWriteWithOffset(reg, entry_offset, &new_value, 4, &r);
-				else
-					cellFsWriteWithOffset(reg, entry_offset, str_value, strlen(str_value), &r);
-			}
-			break;
-		}
-
-		entry_offset += len_data + 1;
-
-		if(off_string == 0xCCDD || entry_offset >= stat.st_size) break;
-	}
-
-	cellFsClose(reg);
-
-	return reg_value;
-}
-#endif
-
 static u32 get_system_language(u8 *lang)
 {
 	//u32 val_lang = get_xreg_value("/setting/system/language", 1);
@@ -398,7 +323,7 @@ static u32 get_system_language(u8 *lang)
 }
 
 #define CHUNK_SIZE 512
-#define GET_NEXT_BYTE  {if(p >= CHUNK_SIZE)  {cellFsRead(fd, buffer, CHUNK_SIZE, &bytes_read); p = 0;} c = buffer[p++], lang_pos++;}
+#define GET_NEXT_BYTE  {if(p >= CHUNK_SIZE)  {cellFsReadWithOffset(fd, lang_pos, buffer, CHUNK_SIZE, &bytes_read); p = 0;} c = buffer[p++], lang_pos++;}
 
 static u8 lang_roms = 0;
 
@@ -413,14 +338,13 @@ static bool language(const char *key_name, char *label, const char *default_str)
 	static size_t p = 0, lang_pos = 0, size = 0;
 	u8 c, i, key_len = strlen(key_name);
 
-	sprintf(label, "%s", default_str);
-
 	u8 do_retry = 1;
 	char buffer[MAX_LINE_LEN];
 
 	if(!lang_roms) close_language();
 
  retry:
+	strcpy(label, default_str);
 
 	if(fh == 0)
 	{
@@ -448,7 +372,7 @@ static bool language(const char *key_name, char *label, const char *default_str)
 
 		struct CellFsStat buf;
 
-		if(cellFsStat(lang_path, &buf)) return false; size = (size_t)buf.st_size;
+		if(cellFsStat(lang_path, &buf)) return true; size = (size_t)buf.st_size;
 
 		if(cellFsOpen(lang_path, CELL_FS_O_RDONLY, &fh, NULL, 0)) return false;
 
@@ -484,7 +408,7 @@ static bool language(const char *key_name, char *label, const char *default_str)
 					if(c == '[') copy = 1;
 				}
 
-				label[str_len] = NULL;
+				if(str_len) label[str_len] = '\0';
 
 				if(str_len < do_retry) goto do_retry;
 

@@ -19,6 +19,25 @@ enum FIX_GAME_MODES
 
 #include "param_sfo.h"
 
+#ifdef COBRA_ONLY
+ #if defined(USE_NTFS) || defined(FIX_GAME)
+static u64 getlba(const char *s1, u16 n1, const char *s2, u16 n2, u16 *start)
+{
+	for(u16 n = *start + 0x1F; n < (n1 - n2); n++)
+	{
+		if(memcmp(&s1[n], s2, n2) == 0)
+		{
+			while(n > 0x1D && s1[n--] != 0x01); n-=0x1C, fixed_count++;
+			u32 lba = (s1[n] & 0xFF) + ((s1[n+1] & 0xFF) << 8) + ((s1[n+2] & 0xFF) << 16) + ((s1[n+3] & 0xFF) << 24);
+			*start = n + 0x1C + n2;
+			return lba;
+		}
+	}
+	return 0;
+}
+ #endif
+#endif
+
 #ifdef FIX_GAME
 static bool fix_sfo_attribute(unsigned char *mem, u16 sfo_size)
 {
@@ -104,28 +123,13 @@ static void fix_game_folder(char *path)
 			}
 		}
 
-		path[plen] = NULL;
+		path[plen] = '\0';
 		cellFsClosedir(fd);
 		if(plevel) plevel--;
 	}
 }
 
 #ifdef COBRA_ONLY
-static u64 getlba(const char *s1, u16 n1, const char *s2, u16 n2, u16 *start)
-{
-	for(u16 n = *start + 0x1F; n < (n1 - n2); n++)
-	{
-		if(memcmp(&s1[n], s2, n2) == 0)
-		{
-			while(n > 0x1D && s1[n--] != 0x01); n-=0x1C, fixed_count++;
-			u32 lba = (s1[n] & 0xFF) + ((s1[n+1] & 0xFF) << 8) + ((s1[n+2] & 0xFF) << 16) + ((s1[n+3] & 0xFF) << 24);
-			*start = n + 0x1C + n2;
-			return lba;
-		}
-	}
-	return 0;
-}
-
 static void fix_iso(char *iso_file, u64 maxbytes, bool patch_update)
 {
 	struct CellFsStat buf;
@@ -260,7 +264,7 @@ exit_fix:
 	}
 	else
 	{
-		get_name(update_path, get_filename(iso_file) + 1, GET_WMTMP); strcat(update_path, ".SFO\0");
+		get_name(update_path, get_filename(iso_file) + 1, GET_WMTMP); strcat(update_path, ".SFO");
 		getTitleID(update_path, title_id, GET_TITLE_ID_ONLY);
 	}
 
@@ -297,7 +301,7 @@ static void fix_game(char *game_path, char *title_id, u8 fix_type)
 			if(!get_flag(game_path, "/PS3_GAME")) get_flag(game_path, "/USRDIR");
 
 			if(islike(game_path, "/net") || strstr(game_path, ".ntfs["))
-				{get_name(filename, get_filename(game_path) + 1, GET_WMTMP); strcat(filename, ".SFO\0");}
+				{get_name(filename, get_filename(game_path) + 1, GET_WMTMP); strcat(filename, ".SFO");}
 			else
 				sprintf(filename, "%s/PARAM.SFO", game_path);
 
@@ -317,7 +321,7 @@ static void fix_game(char *game_path, char *title_id, u8 fix_type)
 					save_file(filename, paramsfo, bytes_read);
 				}
 
-				tmp_path[10] = NULL;
+				tmp_path[10] = '\0';
 
 				// get titleid & fix game folder if version is higher than cfw
 				if((fix_param_sfo(mem, title_id, FIX_SFO, (u16)bytes_read) || fix_type == FIX_GAME_FORCED) && fix_type != FIX_GAME_DISABLED && !islike(tmp_path, "/net") && !islike(tmp_path, "/dev_bdvd") && !strstr(game_path, ".ntfs["))

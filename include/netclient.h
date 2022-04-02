@@ -78,10 +78,8 @@ static s64 open_remote_file(int s, const char *path, int *abort_connection)
 
 	netiso_open_cmd cmd;
 	netiso_open_result res;
-	int len, emu_mode = *abort_connection;
 
-	len = strlen(path);
-
+	int len = strlen(path);
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.opcode = BE16(NETISO_CMD_OPEN_FILE);
 	cmd.fp_len = BE16(len);
@@ -110,6 +108,8 @@ static s64 open_remote_file(int s, const char *path, int *abort_connection)
 		return FAILED;
 	}
 
+	int emu_mode = *abort_connection;
+
 	// detect CD sector size
 	if((emu_mode == EMU_PSX) && (res.file_size >= _64KB_) && (res.file_size <= 0x35000000UL))
 	{
@@ -128,7 +128,7 @@ static s64 open_remote_file(int s, const char *path, int *abort_connection)
 				CD_SECTOR_SIZE_2352 = detect_cd_sector_size(chunk);
 			}
 
-			sys_memory_free((sys_addr_t)sysmem);
+			sys_memory_free(sysmem);
 		}
 	}
 
@@ -148,9 +148,8 @@ static int remote_stat(int s, const char *path, int *is_directory, s64 *file_siz
 
 	netiso_stat_cmd cmd;
 	netiso_stat_result res;
-	int len;
 
-	len = strlen(path);
+	int len = strlen(path);
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.opcode = (NETISO_CMD_STAT_FILE);
 	cmd.fp_len = (len);
@@ -185,6 +184,20 @@ static int remote_stat(int s, const char *path, int *is_directory, s64 *file_siz
 	*atime = (res.atime);
 
 	return CELL_OK;
+}
+
+static int remote_file_exists(int ns, const char *remote_file)
+{
+	s64 size = 0; int abort_connection = 0;
+	int is_directory = 0; u64 mtime, ctime, atime;
+
+	if(remote_stat(ns, remote_file, &is_directory, &size, &mtime, &ctime, &atime, &abort_connection) == FAILED)
+		return FAILED;
+
+	if(is_directory || (size > 0))
+		return CELL_OK;
+
+	return FAILED;
 }
 
 #ifdef USE_INTERNAL_NET_PLUGIN
@@ -291,7 +304,7 @@ static int process_read_cd_2352_cmd(u8 *buf, u32 sector, u32 remaining)
 
 			if(copy_ptr)
 			{
-				memcpy(buf + (copy_offset * CD_SECTOR_SIZE_2352), copy_ptr, copy_size * CD_SECTOR_SIZE_2352);
+				memcpy64(buf + (copy_offset * CD_SECTOR_SIZE_2352), copy_ptr, copy_size * CD_SECTOR_SIZE_2352);
 
 				if(remaining == copy_size)
 				{
@@ -334,7 +347,7 @@ static int process_read_cd_2352_cmd(u8 *buf, u32 sector, u32 remaining)
 	if(process_read_iso_cmd(cd_cache, sector * CD_SECTOR_SIZE_2352, CD_CACHE_SIZE * CD_SECTOR_SIZE_2352) != 0)
 		return FAILED;
 
-	memcpy(buf, cd_cache, remaining * CD_SECTOR_SIZE_2352);
+	memcpy64(buf, cd_cache, remaining * CD_SECTOR_SIZE_2352);
 	cached_cd_sector = sector;
 
 	return CELL_OK;
@@ -634,7 +647,23 @@ static int connect_to_remote_server(u8 server_id)
 	return ns;
 }
 
-static int open_remote_dir(int s, const char *path, int *abort_connection)
+static bool remote_is_dir(int ns, const char *path)
+{
+	if(*path && (ns >= 0))
+	{
+		s64 size = 0; int abort_connection = 0;
+		int is_directory = 0; u64 mtime, ctime, atime;
+
+		if(remote_stat(ns, path, &is_directory, &size, &mtime, &ctime, &atime, &abort_connection) == FAILED)
+			return false;
+
+		if(is_directory)
+			return true;
+	}
+	return false;
+}
+
+static int open_remote_dir(int s, const char *path, int *abort_connection, bool subdirs)
 {
 	*abort_connection = 1;
 
@@ -646,11 +675,16 @@ static int open_remote_dir(int s, const char *path, int *abort_connection)
 		return FAILED;
 	}
 
+	if(remote_is_dir(s, path) == false) return FAILED;
+
 	netiso_open_dir_cmd cmd;
 	netiso_open_dir_result res;
-	int len;
 
-	len = strlen(path);
+	char *_path = (char *)path;
+
+	if(subdirs) strcat(_path, "//");
+
+	int len = strlen(path);
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.opcode = (NETISO_CMD_OPEN_DIR);
 	cmd.dp_len = (len);
@@ -661,11 +695,13 @@ static int open_remote_dir(int s, const char *path, int *abort_connection)
 		return FAILED;
 	}
 
-	if(send(s, path, len, 0) != len)
+	if(send(s, _path, len, 0) != len)
 	{
 		//DPRINTF("send failed (open_remote_dir) (errno=%d)!\n", get_network_error());
 		return FAILED;
 	}
+
+	if(subdirs) _path[len - 2] = '\0';
 
 	if(recv(s, &res, sizeof(res), MSG_WAITALL) != sizeof(res))
 	{
@@ -743,7 +779,7 @@ static int read_remote_dir(int s, sys_addr_t *data /*netiso_read_dir_result_data
 	return (res.dir_size);
 }
 
-static int copy_net_file(const char *local_file, const char *remote_file, int ns, u64 maxbytes)
+static int copy_net_file(const char *local_file, const char *remote_file, int ns)
 {
 	copy_aborted = false;
 
@@ -751,16 +787,17 @@ static int copy_net_file(const char *local_file, const char *remote_file, int ns
 
 	if(file_exists(local_file)) return CELL_OK; // local file already exists
 
-	s64 size = 0; int abort_connection = 0;
+	// check invalid characters
+	for(u16 c = 0; remote_file[c]; c++)
+	{
+		if(strchr("\"<|>:*?", remote_file[c])) return FAILED;
+	}
 
-	//
-	int is_directory = 0; u64 mtime, ctime, atime;
-	if(remote_stat(ns, remote_file, &is_directory, &size, &mtime, &ctime, &atime, &abort_connection) != CELL_OK || size <= 0) return FAILED;
-	//
-
+	// copy remote file
 	int ret = FAILED;
+	int abort_connection = 0;
 
-	size = open_remote_file(ns, remote_file, &abort_connection);
+	s64 size = open_remote_file(ns, remote_file, &abort_connection);
 
 	u64 file_size = size;
 
@@ -774,8 +811,6 @@ static int copy_net_file(const char *local_file, const char *remote_file, int ns
 
 			if(cellFsOpen(local_file, CELL_FS_O_CREAT | CELL_FS_O_TRUNC | CELL_FS_O_WRONLY, &fdw, NULL, 0) == CELL_FS_SUCCEEDED)
 			{
-				if(maxbytes > 0UL && file_size > maxbytes) file_size = maxbytes;
-
 				if(chunk_size > file_size) chunk_size = (u32)file_size;
 
 				int bytes_read; u64 boff = 0;

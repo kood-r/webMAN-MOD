@@ -46,7 +46,7 @@ enum emu_modes
 
 #define PKGFILE 6 || (m == 7) || (m == 8)
 
-#define FW_VERSION 4.87f
+#define FW_VERSION 4.88f
 
 typedef struct
 {
@@ -80,12 +80,17 @@ static int mountCount;
 #include "ff.h"
 #include "fflib.h"
 
+#include "mem.h"
 #include "iso.h"
 #include "file.h"
 #include "firmware.h"
 #include "fix_game.h"
-#include "net.h"
 #include "fake_iso.h"
+
+//#define MULTIMAN
+#ifndef MULTIMAN
+#include "net.h"
+#endif
 
 //----------------
 
@@ -96,6 +101,7 @@ static uint32_t num_tracks;
 
 static uint8_t g_profile;
 static uint8_t g_mode;
+static uint8_t g_mmcm;
 
 static rawseciso_args *p_args;
 static int cd_sector_size, cd_sector_size_param;
@@ -144,6 +150,13 @@ int main(int argc, const char* argv[])
 	mkdir(path, S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR);
 	sysFsChmod(path, S_IFDIR | 0777);
 
+	g_mmcm = 0;
+
+	if(argc > 0 && argv)
+	{
+		g_mmcm = (!strncmp(argv[0], "/dev_hdd0/game/", 15));
+	}
+
 //--- hold CROSS to keep previous cached files
 	unsigned button = 0;
 
@@ -184,8 +197,10 @@ int main(int argc, const char* argv[])
 
 	cobra_lib_init();
 
+	#ifndef MULTIMAN
 	int refresh_xml = connect_to_webman();
 	if(refresh_xml >= 0) ssend(refresh_xml, "GET /mount.ps3/unmount HTTP/1.0\r\n");
+	#endif
 
 	scan_exfat();
 
@@ -303,7 +318,7 @@ int main(int argc, const char* argv[])
 								if( is_iso )
 								{
 									size_t path_len;
-									filename[flen - ext_len] = '\0';
+									if(!g_mmcm) filename[flen - ext_len] = '\0';
 									path_len = snprintf(path, sizeof(path), "%s:/%s%s%s/%s", mounts[i].name, prefix[p], c_path[m], SUFIX(profile), direntry);
 
 									//--- PS3ISO: fix game, cache SFO, ICON0 and PIC1 (if mmCM is installed)
@@ -311,13 +326,22 @@ int main(int argc, const char* argv[])
 									{
 										titleID[0] = '\0';
 
-										sprintf(wm_path, "%s:/%s%s%s/%s.SFO", mounts[i].name, prefix[p], c_path[m], SUFIX(profile), filename);
+										*ext = '\0'; sprintf(wm_path, "%s:/%s%s%s/%s.SFO", mounts[i].name, prefix[p], c_path[m], SUFIX(profile), filename);
 										if(not_exists(wm_path))
-											ExtractFileFromISO(path, "/PS3_GAME/PARAM.SFO;1", wm_path);
+										{
+											*ext = '.'; sprintf(wm_path, "%s:/%s%s%s/%s.SFO", mounts[i].name, prefix[p], c_path[m], SUFIX(profile), filename);
+											if(not_exists(wm_path))
+												ExtractFileFromISO(path, "/PS3_GAME/PARAM.SFO;1", wm_path);
+										}
 
-										sprintf(wm_path, "/dev_hdd0/tmp/wmtmp/%s.SFO", filename);
+										*ext = '\0'; sprintf(wm_path, "/dev_hdd0/tmp/wmtmp/%s.SFO", filename);
 										if(not_exists(wm_path))
-											ExtractFileFromISO(path, "/PS3_GAME/PARAM.SFO;1", wm_path);
+										{
+											*ext = '.'; sprintf(wm_path, "/dev_hdd0/tmp/wmtmp/%s.SFO", filename);
+											if(not_exists(wm_path))
+												ExtractFileFromISO(path, "/PS3_GAME/PARAM.SFO;1", wm_path);
+										}
+										*ext = '.';
 
 										if(c_firmware < FW_VERSION && need_fix(wm_path))
 										{
@@ -496,11 +520,13 @@ exit:
 	for (u8 u = 0; u < mountCount; u++) ntfsUnmount(mounts[u].name, 1);
 
 	//--- Force refresh xml (webMAN)
+	#ifndef MULTIMAN
 	refresh_xml = connect_to_webman();
 	if(refresh_xml >= 0) ssend(refresh_xml, "GET /refresh.ps3 HTTP/1.0\r\n");
+	#endif
 
 	//--- Launch RELOAD.SELF
-	char *self_path = path; memset(self_path, 0, MAX_PATH_LEN);
+	char *self_path = path; _memset(self_path, MAX_PATH_LEN);
 	if(argc > 0 && argv)
 	{
 		if(!strncmp(argv[0], "/dev_hdd0/game/", 15))

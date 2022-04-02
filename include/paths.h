@@ -9,8 +9,18 @@
 #define REBUG_TOOLBOX		"/dev_hdd0//game/RBGTLBOX2/USRDIR/"
 #define COLDBOOT_PATH		"/dev_blind/vsh/resource/coldboot.raf"
 #define IMAGEFONT_PATH		"/dev_flash/vsh/resource/imagefont.bin"
+
 #define ORG_LIBFS_PATH		"/dev_flash/sys/external/libfs.sprx"
 #define NEW_LIBFS_PATH		"/dev_hdd0/tmp/wm_res/libfs.sprx"
+
+#define ORG_GAME_EXT_PATH	"/dev_flash/vsh/module/game_ext_plugin.sprx"
+#define NEW_GAME_EXT_PATH	"/dev_hdd0/tmp/gameboot/game_ext_plugin.sprx"
+
+#define ORG_LIBAUDIO_PATH	"/dev_flash/sys/external/libaudio.sprx"
+#define NEW_LIBAUDIO_PATH	"/dev_hdd0/tmp/libaudio.sprx"
+
+#define NPSIGNIN_PLUGIN_RCO		"/dev_flash/vsh/resource/npsignin_plugin.rco"
+#define NPSIGNIN_PLUGIN_OFF		"/dev_hdd0/tmp/wm_res/npsignin_plugin.rco"
 
 #define XMB_DISC_ICON		"/dev_hdd0/tmp/game/ICON0.PNG"
 #define CATEGORY_GAME_XML	"/dev_flash/vsh/resource/explore/xmb/category_game.xml"
@@ -37,6 +47,7 @@
 
 #define WMCONFIG			TMP_DIR "/wm_config.bin"		// webMAN config file
 #define WMTMP				TMP_DIR "/wmtmp"				// webMAN work/temp folder
+#define WMTMP_COVERS		TMP_DIR "/wmtmp/covers"			// webMAN covers folder
 #define WM_RES_PATH			TMP_DIR "/wm_res"				// webMAN resources
 #define WM_LANG_PATH		TMP_DIR "/wm_lang"				// webMAN language folder
 #define WM_ICONS_PATH		TMP_DIR "/wm_icons"				// webMAN icons folder
@@ -51,6 +62,7 @@
 #define WMOFFLINE_GAMES		WM_RES_PATH "/wm_offline_ids.txt"	// webMAN config file to disable network setting on specific title ids (overrides wm_online_ids.txt)
 
 #define WMIGNORE_FILES		WM_RES_PATH "/wm_ignore.txt"	// webMAN config file to ignore files during content scanning
+#define WMROMS_EXTENSIONS	WM_RES_PATH "/roms_extensions.txt"
 
 #define FILE_LIST_TXT		WMTMP "/filelist.txt"
 #define FILE_LIST_HTM		WMTMP "/filelist.htm"
@@ -94,11 +106,15 @@
 
 //////////////////////////////
 
+#define XML_HOST_PATH			"/dev_hdd0/xmlhost"
 #define HTML_BASE_PATH			"/dev_hdd0/xmlhost/game_plugin"
 
 #define HEN_HFW_SETTINGS		"/dev_hdd0/hen/hfw_settings.xml"
 
+#define _FB_XML					HTML_BASE_PATH "//fb.xml"
 #define FB_XML					HTML_BASE_PATH "/fb.xml"
+#define FB_HEN_XML				HTML_BASE_PATH "/fb-hen.xml"
+
 #ifdef COBRA_ONLY
 #define MY_GAMES_XML			HTML_BASE_PATH "/mygames.xml"
 #else
@@ -137,6 +153,20 @@ static const char *smonth[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"
 static char drives[17][12] = {"/dev_hdd0", "/dev_usb000", "/dev_usb001", "/dev_usb002", "/dev_usb003", "/dev_usb006", "/dev_usb007", "/net0", "/net1", "/net2", "/net3", "/net4", "/dev_ntfs", "/dev_sd", "/dev_ms", "/dev_cf", "/dev_blind"};
 static char paths [13][10] = {"GAMES", "GAMEZ", "PS3ISO", "BDISO", "DVDISO", "PS2ISO", "PSXISO", "PSXGAMES", "PSPISO", "ISO", "video", "GAMEI", "ROMS"};
 
+#ifdef COBRA_ONLY
+static const char *iso_ext[11] = {".bin", ".iso", ".iso.0", ".img", ".mdf", ".BIN", ".ISO", ".ISO.0", ".IMG", ".MDF", ".bin"};
+static const char *cue_ext[4]  = {".cue", ".ccd", ".CUE", ".CCD"};
+#endif
+
+#ifdef COPY_PS3
+static const char *script_events[4] = {
+										"/dev_hdd0/boot_init.txt",
+										"/dev_hdd0/autoexec.bat",
+										"/dev_hdd0/onxmb.bat",
+										"/dev_hdd0/ingame.bat"
+									  };
+#endif
+
 #define NET				(7)
 #define NTFS 			(12)
 #define MAX_DRIVES		16
@@ -146,3 +176,4 @@ static char paths [13][10] = {"GAMES", "GAMEZ", "PS3ISO", "BDISO", "DVDISO", "PS
 #define STD_PATH_LEN	263 // standard path len (260 characters in NTFS - Windows 10 removed this limit in 2016)
 #define MAX_PATH_LEN	512 // do not change!
 #define MAX_TEXT_LEN	1300 // should not exceed HTML_RECV_SIZE (RECV buffer is unstable above 1400 bytes)
+

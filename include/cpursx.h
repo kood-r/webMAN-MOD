@@ -35,7 +35,8 @@ static void get_cobra_version(char *cfw_info)
 	// returns cfw_info[22]
 
 #ifdef COBRA_ONLY
-	if(syscalls_removed && peekq(TOC) != SYSCALLS_UNAVAILABLE) syscalls_removed = false;
+	syscalls_removed = CFW_SYSCALLS_REMOVED(TOC);
+	if(!syscalls_removed) disable_signin_dialog();
 
 	if(!cobra_version && !syscalls_removed) sys_get_cobra_version();
 
@@ -55,7 +56,7 @@ static void get_cobra_version(char *cfw_info)
 		sprintf(cfw_info, "%s %s %s", "CEX", is_mamba ? "Mamba" : "Cobra", cobra_ver);
 	#endif
 	if(!cobra_version) {char *cfw = strchr(cfw_info, ' '); *cfw = NULL;}
-#elif DEX_SUPPORT
+#elif defined(DEX_SUPPORT)
 	#if defined(DECR_SUPPORT)
 		sprintf(cfw_info, "%s", (dex_mode == 1) ? "DECR" : dex_mode ? "DEX" : "CEX");
 	#else
@@ -68,7 +69,7 @@ static void get_cobra_version(char *cfw_info)
 		sprintf(cfw_info, " nonCobra");
 #endif
 
-	// noBD LV1 4.75 - 4.87
+	// noBD LV1 4.75 - 4.88
 	if(isNOBD)  // ori: 0x78630020409E0018ULL
 		strcat(cfw_info, " noBD");
 }
@@ -95,11 +96,9 @@ static void add_game_info(char *buffer, char *templn, u8 is_cpursx)
 {
 	if(IS_INGAME)
 	{
-		get_game_info();
-
-		if(strlen(_game_TitleID) == 9)
+		if(!is_cpursx && sys_admin)
 		{
-			if(!is_cpursx && sys_admin)
+			if(GetCurrentRunningMode() == 1)
 			{
 #ifdef GET_KLICENSEE
 				buffer += concat(buffer, " [<a href=\"/klic.ps3\">KLIC</a>]");
@@ -110,8 +109,15 @@ static void add_game_info(char *buffer, char *templn, u8 is_cpursx)
 #ifdef VIDEO_REC
 				buffer += concat(buffer, " [<a href=\"/videorec.ps3\">REC</a>]");
 #endif
+				buffer += concat(buffer, " [<a href=\"/xmb.ps3$reloadgame\">Reload</a>]");
 			}
+			buffer += concat(buffer, " [<a href=\"/xmb.ps3$exit\">Exit</a>]");
+		}
 
+		get_game_info();
+
+		if(strlen(_game_TitleID) == 9)
+		{
 			char path[MAX_PATH_LEN], version[8] = "01.00", *app_ver = version;
 
 			sprintf(templn, "<hr><span style=\"position:relative;top:-20px;\"><H2><a href=\"%s/%s/%s-ver.xml\" target=\"_blank\">%s</a>", "https://a0.ww.np.dl.playstation.net/tpl/np", _game_TitleID, _game_TitleID, _game_TitleID); buffer += concat(buffer, templn);
@@ -198,7 +204,7 @@ static void cpu_rsx_stats(char *buffer, char *templn, char *param, u8 is_ps3_htt
 
 	if(*templn) buffer += concat(buffer, templn);
 
-	if(strstr(param, "?"))
+	if(strchr(param, '?'))
 	{
 		char *pos = strstr(param, "fan=");  // 0 = SYSCON, 1 = DYNAMIC, 2 = FAN_AUTO2
 		if(pos)
@@ -295,16 +301,15 @@ static void cpu_rsx_stats(char *buffer, char *templn, char *param, u8 is_ps3_htt
 
 	*templn = NULL;
 
-	int hdd_free, dm; char *str_free;
+	char hdd_free[40];
 
 #ifndef LITE_EDITION
 	for(u8 d = 1; d < 7; d++)
 	{
 		if(isDir(drives[d]))
 		{
-			hdd_free = (int)(get_free_space(drives[d])>>20); dm = (hdd_free % KB) / 100; str_free = STR_MBFREE;
-			if(hdd_free > 1024) {hdd_free /= KB, str_free = STR_GBFREE;}
-			sprintf(param, "<br><a href=\"%s\">USB%.3s: %'d.%i %s</a>", drives[d], drives[d] + 8, hdd_free, dm, str_free); strcat(templn, param);
+			free_size(drives[d], hdd_free);
+			sprintf(param, "<br><a href=\"%s\">USB%.3s: %s</a>", drives[d], drives[d] + 8, hdd_free); strcat(templn, param);
 		}
 	}
 #endif
@@ -324,16 +329,15 @@ static void cpu_rsx_stats(char *buffer, char *templn, char *param, u8 is_ps3_htt
 	else
 		sprintf(max_temp1, "/games.ps3");
 
-	hdd_free = (int)(get_free_space(drives[0])>>20); dm = (hdd_free % KB) / 100; str_free = STR_MBFREE;
-	if(hdd_free > 1024) {hdd_free /= KB, str_free = STR_GBFREE;}
+	free_size(drives[0], hdd_free);
 
 	sprintf(param,	"<a class=\"s\" href=\"%s\">"
 					"MEM: %'d KB %s</a><br>"
-					"<a href=\"%s\">HDD: %'d.%i %s</a>%s<hr>"
+					"<a href=\"%s\">HDD: %s</a>%s<hr>"
 					"<a class=\"s\" href=\"/cpursx.ps3?mode\">"
 					"%s %i%% (0x%X)</a><br>",
 					max_temp1, (meminfo.avail>>10), IS_ON_XMB ? "(XMB)" : "",
-					drives[0], hdd_free, dm, str_free, templn,
+					drives[0], hdd_free, templn,
 					STR_FANCH2, (int)((int)fan_speed * 100) / 255, fan_speed); buffer += concat(buffer, param);
 
 	if(!max_temp && webman_config->fanc && !is_ps3_http )

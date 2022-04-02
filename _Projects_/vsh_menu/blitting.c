@@ -35,17 +35,17 @@ static int32_t get_font_object(void)
 			font_obj = (int32_t)((int32_t)((*(int32_t*)(pm_start + 0x4C) & 0x0000FFFF) <<16) +
 					   (int16_t)( *(int32_t*)(pm_start + 0x54) & 0x0000FFFF));
 
-		  // get font library pointer
-		  font_lib_ptr = (void*)(*(int32_t*)font_obj);
+			// get font library pointer
+			font_lib_ptr = (void*)(*(int32_t*)font_obj);
 
-		  // get addresses of loaded sys fonts
-		  for(i = 0; i < 16; i++)
-		    vsh_fonts[i] = (font_obj + 0x14 + (i * 0x100));
+			// get addresses of loaded sys fonts
+			for(i = 0; i < 16; i++)
+				vsh_fonts[i] = (font_obj + 0x14 + (i * 0x100));
 
-		  return 0;
+			return 0;
 		}
 
-		pm_start+=4;
+		pm_start += 4;
 	}
 
 	return FAILED;
@@ -82,7 +82,7 @@ static void set_font_default(void)
 ***********************************************************************/
 static void font_init(void)
 {
-	uint32_t user_id = 0, val = 0;
+	uint32_t user_id = 0; int val = 0;
 	CellFontRendererConfig rd_cfg;
 	CellFont *opened_font = NULL;
 
@@ -158,7 +158,7 @@ static void render_glyph(int32_t idx, uint32_t code)
 	CellFontRenderSurface  surface;
 	CellFontGlyphMetrics   metrics;
 	CellFontImageTransInfo transinfo;
-	int32_t i, k, x, y, w, h;
+	int32_t i, k, m, x, y, w, h;
 	int32_t ibw;
 
 
@@ -190,9 +190,9 @@ static void render_glyph(int32_t idx, uint32_t code)
 
 	// copy glyph bitmap into cache
 	for(k = 0; k < bitmap->glyph[idx].h; k++)
-	for(i = 0; i < bitmap->glyph[idx].w; i++)
-		bitmap->glyph[idx].image[k*bitmap->glyph[idx].w + i] =
-		transinfo.Image[k * ibw + i];
+		for(m = k*bitmap->glyph[idx].w, i = 0; i < bitmap->glyph[idx].w; i++)
+			bitmap->glyph[idx].image[m + i] =
+			transinfo.Image[k * ibw + i];
 
 	bitmap->glyph[idx].metrics = metrics;
 }
@@ -313,12 +313,14 @@ static int32_t utf8_to_ucs4(uint8_t *utf8, uint32_t *ucs4)
 ***********************************************************************/
 static void dump_bg(void)
 {
-	uint32_t i, k, CANVAS_WW = CANVAS_W/2;
+	uint32_t i, k, kk, m, y, CANVAS_WW = CANVAS_W/2;
 	uint64_t *bg = (uint64_t*)ctx.bg;
 
 	for(i = 0; i < CANVAS_H; i++)
-		for(k = 0; k < CANVAS_WW; k++)
-			bg[k + i * CANVAS_WW] = *(uint64_t*)(OFFSET(canvas_x + (k*2), canvas_y + (i)));
+		for(m = i * CANVAS_WW,
+			kk = canvas_x, y = canvas_y + i,
+			k = 0; k < CANVAS_WW; k++, kk+=2)
+				bg[k + m] = *(uint64_t*)(OFFSET(kk, y));
 }
 
 /***********************************************************************
@@ -338,10 +340,10 @@ void init_graphic()
 	font_init();
 
 	// get current display values
-	offset = *(uint32_t*)0x60201104;      // start offset of current framebuffer
-	getDisplayPitch(&pitch, &unk1);       // framebuffer pitch size
-	h = getDisplayHeight();               // display height
-	w = getDisplayWidth();                // display width
+	offset = BASE + *(uint32_t*)0x60201104;      // start offset of current framebuffer
+	getDisplayPitch(&pitch, &unk1); pitch /= 4;  // framebuffer pitch size
+	h = getDisplayHeight();                      // display height
+	w = getDisplayWidth();                       // display width
 
 	// get x/y start coordinates for our canvas, here always center
 	canvas_x = (w - CANVAS_W) / 2;
@@ -351,7 +353,7 @@ void init_graphic()
 	dump_bg();
 
 	// init first frame with background dump
-	memcpy((uint8_t *)ctx.canvas, (uint8_t *)ctx.bg, CANVAS_W * CANVAS_H * 4);
+	memcpy32(ctx.canvas, ctx.bg, CANVAS_W * CANVAS_H);
 }
 
 /***********************************************************************
@@ -379,15 +381,17 @@ int32_t load_png_bitmap(int32_t idx, const char *path)
 ***********************************************************************/
 static uint32_t mix_color(uint32_t bg, uint32_t fg)
 {
-  uint32_t a = fg >>24;
+	uint32_t a = fg >>24;
 
-  if(a == 0) return bg;
+	if(a == 0) return bg;
 
-  uint32_t rb = (((fg & 0x00FF00FF) * a) + ((bg & 0x00FF00FF) * (255 - a))) & 0xFF00FF00;
-  uint32_t g  = (((fg & 0x0000FF00) * a) + ((bg & 0x0000FF00) * (255 - a))) & 0x00FF0000;
-  fg = a + ((bg >>24) * (255 - a) / 255);
+	uint32_t aa = (255 - a);
 
-  return (fg <<24) | ((rb | g) >>8);
+	uint32_t rb = (((fg & 0x00FF00FF) * a) + ((bg & 0x00FF00FF) * aa)) & 0xFF00FF00;
+	uint32_t g  = (((fg & 0x0000FF00) * a) + ((bg & 0x0000FF00) * aa)) & 0x00FF0000;
+	fg = a + (((bg >>24) * aa)>>8);
+
+	return (fg <<24) | ((rb | g) >>8);
 }
 
 /***********************************************************************
@@ -395,15 +399,17 @@ static uint32_t mix_color(uint32_t bg, uint32_t fg)
 ***********************************************************************/
 void flip_frame()
 {
-	int32_t i, k, m, CANVAS_WW = CANVAS_W/2;
+	int32_t i, k, kk, m, y, CANVAS_WW = CANVAS_W/2;
 	uint64_t *canvas = (uint64_t*)ctx.canvas;
 
-	for(m = i = 0; i < CANVAS_H; i++, m = i * CANVAS_WW)
-		for(k = 0; k < CANVAS_WW; k++)
-		  *(uint64_t*)(OFFSET(canvas_x + (k*2), canvas_y + (i))) = canvas[k + m];
+	for(i = 0; i < CANVAS_H; i++)
+		for(m = i * CANVAS_WW,
+			kk = canvas_x, y = canvas_y + i,
+			k = 0; k < CANVAS_WW; k++, kk+=2)
+				*(uint64_t*)(OFFSET(kk, y)) = canvas[k + m];
 
 	// after flip, clear frame buffer with background
-	memcpy((uint8_t *)ctx.canvas, (uint8_t *)ctx.bg, CANVAS_W * CANVAS_H * 4);
+	memcpy32(ctx.canvas, ctx.bg, CANVAS_W * CANVAS_H);
 }
 
 /***********************************************************************
@@ -476,15 +482,15 @@ int32_t print_text(int32_t x, int32_t y, const char *str)
 	int32_t t_x = x, t_y = y;                                       // temp x/y
 	int32_t o_x = x, o_y = y + bitmap->horizontal_layout.baseLineY; // origin x/y
 	Glyph *glyph;                                                   // char glyph
-	uint8_t *utf8 = (uint8_t*)str;
-
+	uint8_t *utf8 = (uint8_t*)str; if(!str) return x;
+	uint32_t pixel;
 
 	memset(&glyph, 0, sizeof(Glyph));
 
 	// center text (only 1 line)
 	if(x == CENTER_TEXT)
 	{
-		while(1)                                  // get render length
+		for(;;) // get render length
 		{
 			utf8 += utf8_to_ucs4(utf8, &code);
 
@@ -499,7 +505,7 @@ int32_t print_text(int32_t x, int32_t y, const char *str)
 	}
 
 	// render text
-	while(1)
+	for(;;)
 	{
 		utf8 += utf8_to_ucs4(utf8, &code);
 
@@ -522,12 +528,16 @@ int32_t print_text(int32_t x, int32_t y, const char *str)
 
 			// draw bitmap
 			for(i = 0; i < glyph->h; i++)
-			  for(k = 0; k < glyph->w; k++)
-			    if((glyph->image[i * glyph->w + k]) && (t_x + k < CANVAS_W) && (t_y + i < CANVAS_H))
-						ctx.canvas[(t_y + i) * CANVAS_W + t_x + k] =
-						mix_color(ctx.canvas[(t_y + i) * CANVAS_W + t_x + k],
-						         ((uint32_t)glyph->image[i * glyph->w + k] <<24) |
-						         (ctx.fg_color & 0x00FFFFFF));
+			  if(t_y + i < CANVAS_H)
+				  for(k = 0; k < glyph->w; k++)
+					if((glyph->image[i * glyph->w + k]) && (t_x + k < CANVAS_W))
+					{
+						pixel = (t_y + i) * CANVAS_W + t_x + k;
+						ctx.canvas[pixel] =
+						mix_color(ctx.canvas[pixel],
+								 ((uint32_t)glyph->image[i * glyph->w + k] <<24) |
+								 (ctx.fg_color & 0x00FFFFFF));
+					}
 
 			// get origin-x for next char
 			o_x += glyph->metrics.Horizontal.advance + bitmap->distance;
@@ -540,33 +550,34 @@ int32_t print_text(int32_t x, int32_t y, const char *str)
 /***********************************************************************
 * draw png part into frame.
 *
-* int32_t can_x    =  start x coordinate into canvas
-* int32_t can_y    =  start y coordinate into canvas
-* int32_t png_x    =  start x coordinate into png
-* int32_t png_y    =  start y coordinate into png
-* int32_t w        =  width of png part to blit
-* int32_t h        =  height of png part to blit
+* int32_t can_x	=  start x coordinate into canvas
+* int32_t can_y	=  start y coordinate into canvas
+* int32_t png_x	=  start x coordinate into png
+* int32_t png_y	=  start y coordinate into png
+* int32_t w		=  width of png part to blit
+* int32_t h		=  height of png part to blit
 ***********************************************************************/
 int32_t draw_png(int32_t idx, int32_t c_x, int32_t c_y, int32_t p_x, int32_t p_y, int32_t w, int32_t h)
 {
-	uint32_t i, k, hh = h, ww = w;
+	uint32_t i, k, m, o, hh = h, ww = w;
 
 	const uint32_t CANVAS_WW = CANVAS_W - c_x, CANVAS_HH = CANVAS_H - c_y;
 
-	if(hh > CANVAS_HH) hh = CANVAS_HH;
 	if(ww > CANVAS_WW) ww = CANVAS_WW;
+	if(hh > CANVAS_HH) hh = CANVAS_HH;
+
+	uint32_t offset = p_x + p_y * ctx.png[idx].w;
 
 	for(i = 0; i < hh; i++)
-		for(k = 0; k < ww; k++)
-			ctx.canvas[(c_y + i) * CANVAS_W + c_x + k] =
-			mix_color(ctx.canvas[(c_y + i) * CANVAS_W + c_x + k],
-			ctx.png[idx].addr[(p_x + p_y * ctx.png[idx].w) + (k + i * ctx.png[idx].w)]);
+		for(m = (c_y + i) * CANVAS_W + c_x,
+			o = offset + i * ctx.png[idx].w,
+			k = 0; k < ww; k++, m++, o++)
+				ctx.canvas[m] =
+					mix_color(ctx.canvas[m],
+					ctx.png[idx].addr[o]);
 
 	return (c_x + w);
 }
-
-
-
 
 // screenshot
 uint8_t bmp_header[] = {
@@ -611,45 +622,44 @@ void screenshot(uint8_t mode)
 
 	// alloc buffers
 	uint64_t *line_frame = (uint64_t*)sys_mem;
-	uint8_t *bmp_buf = (uint8_t*)sys_mem + line_frame_size; // start offset: 8 KB
+	uint8_t *bmp_buf = (uint8_t*)sys_mem + (4 * line_frame_size); // start offset: 30 KB
 	uint64_t *bg = (uint64_t*)ctx.bg;
 
 	// set bmp header
 	uint32_t tmp = 0;
 	tmp = _ES32(w*h*3+0x36);
-	memcpy(bmp_header + 2 , &tmp, 4);     // file size
+	memcpy32(bmp_header + 2 , &tmp, 1);     // file size
 	tmp = _ES32(w);
-	memcpy(bmp_header + 18, &tmp, 4);     // bmp width
+	memcpy32(bmp_header + 18, &tmp, 1);     // bmp width
 	tmp = _ES32(h);
-	memcpy(bmp_header + 22, &tmp, 4);     // bmp height
+	memcpy32(bmp_header + 22, &tmp, 1);     // bmp height
 	tmp = _ES32(w*h*3);
-	memcpy(bmp_header + 34, &tmp, 4);     // bmp data size
+	memcpy32(bmp_header + 34, &tmp, 1);     // bmp data size
 
 	// write bmp header
 	fwrite(bmp_header, 1, sizeof(bmp_header), fd);
 
-	uint32_t i, k, idx;
+	uint32_t c, i, k, kk, m, idx = 0;
 
 	uint32_t canvas_x_left = canvas_x/2, canvas_x_right = canvas_x_left + CANVAS_W/2, canvas_y_bottom = canvas_y + CANVAS_H, ww=w/2;
 
 	// dump...
-	for(i = h; i > 0; i--)
+	for(c = 0, i = h; i > 0; i--, c++)
 	{
-		for(k = 0; k < ww; k++)
-			line_frame[k] = *(uint64_t*)(OFFSET(k*2, i));
+		for(k = kk = 0; k < ww; k++, kk+=2)
+			line_frame[k] = *(uint64_t*)(OFFSET(kk, i));
 
 		if((mode == 0) && (i >= canvas_y) && (i < canvas_y_bottom))
 		{
+			m = (((i - canvas_y) * CANVAS_W) - canvas_x)>>1;
 			for(k = canvas_x_left; k < canvas_x_right; k++)
 			{
-				line_frame[k] = bg[(((i - canvas_y) * CANVAS_W) + ((k*2) - canvas_x)) /2];
+				line_frame[k] = bg[m + k];
 			}
 		}
 
 		// convert line from ARGB to RGB
 		uint8_t *tmp_buf = (uint8_t*)line_frame;
-
-		idx = 0; //(h-1-i)*w*3;  // index into bmp buffer, ... f*****g bmp format
 
 		for(k = 0; k < line_frame_size; k+=4, idx+=3)
 		{
@@ -659,8 +669,13 @@ void screenshot(uint8_t mode)
 		}
 
 		// write bmp data
-		fwrite(bmp_buf, 1, idx, fd);
+		if(c >= 3)
+		{
+			fwrite(bmp_buf, 1, idx, fd);
+			c = idx = 0;
+		}
 	}
+	fwrite(bmp_buf, 1, idx, fd);
 
 	// padding
 	int32_t rest = (w*3) % 4, pad = 0;
@@ -702,7 +717,7 @@ void draw_line(int32_t x, int32_t y, int32_t x2, int32_t y2)
 {
 	int32_t i = 0, dx1 = 0, dy1 = 0, dx2 = 0, dy2 = 0;
 	int32_t w = x2 - x;
-  int32_t h = y2 - y;
+	int32_t h = y2 - y;
 
 
 	if(w < 0) dx1 = -1; else if(w > 0) dx1 = 1;
@@ -717,20 +732,20 @@ void draw_line(int32_t x, int32_t y, int32_t x2, int32_t y2)
 		l = abs(h);
 		s = abs(w);
 
-    if(h < 0) dy2 = -1; else if(h > 0) dy2 = 1;
+		if(h < 0) dy2 = -1; else if(h > 0) dy2 = 1;
 
 		dx2 = 0;
 	}
 
 	int32_t num = l >> 1;
 
-  for(i = 0; i <= l; i++)
-  {
+	for(i = 0; i <= l; i++)
+	{
 		draw_pixel(x, y);
-    num+=s;
+		num+=s;
 
-    if(!(num < l))
-    {
+		if(!(num < l))
+		{
 			num-=l;
 			x+=dx1;
 			y+=dy1;
@@ -769,14 +784,14 @@ void draw_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h)
 **********************************************************************
 static void circle_points(int32_t x_c, int32_t y_c, int32_t x, int32_t y)
 {
-    draw_pixel(x_c + x, y_c + y);
-    draw_pixel(x_c - x, y_c + y);
-    draw_pixel(x_c + x, y_c - y);
-    draw_pixel(x_c - x, y_c - y);
-    draw_pixel(x_c + y, y_c + x);
-    draw_pixel(x_c - y, y_c + x);
-    draw_pixel(x_c + y, y_c - x);
-    draw_pixel(x_c - y, y_c - x);
+	draw_pixel(x_c + x, y_c + y);
+	draw_pixel(x_c - x, y_c + y);
+	draw_pixel(x_c + x, y_c - y);
+	draw_pixel(x_c - x, y_c - y);
+	draw_pixel(x_c + y, y_c + x);
+	draw_pixel(x_c - y, y_c + x);
+	draw_pixel(x_c + y, y_c - x);
+	draw_pixel(x_c - y, y_c - x);
 }*/
 
 /***********************************************************************

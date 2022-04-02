@@ -38,7 +38,7 @@ enum icon_type
 	iROM  = 13,
 };
 
-#define HAS_TITLE_ID  ((*title_id >= 'A') && (*title_id <= 'Z') && !title_id[TITLE_ID_LEN])
+#define HAS_TITLE_ID  ((*title_id >= 'A') && (*title_id <= 'Z'))
 
 #define NO_ICON       (!*icon)
 
@@ -53,10 +53,11 @@ static const char *cpath[6] = {MM_ROOT_STD, MM_ROOT_STL, MM_ROOT_SSTL, MANAGUNZ,
 
 #ifndef ENGLISH_ONLY
 static bool use_custom_icon_path = false, use_icon_region = false;
-static bool is_xmbmods_server = false;
+static bool is_devil303_server = false;
 #endif
 
-static bool covers_exist[8];
+static bool covers_exist[9];
+static bool covers_retro_exist[3];
 static bool wm_icons_exists = false;
 
 static bool HAS(char *icon)
@@ -69,11 +70,17 @@ static void check_cover_folders(char *buffer)
 #ifndef ENGLISH_ONLY
 													covers_exist[0] = isDir(COVERS_PATH); // online url or custom path
 #endif
-		for(u8 p = 0; p < 6; p++)
+		u8 p;
+		for(p = 0; p < 3; p++)
+		{
+			sprintf(buffer, "%s/covers_retro/psx", cpath[p]); covers_retro_exist[p] = isDir(buffer);  // MM_ROOT_STD, MM_ROOT_STL, MM_ROOT_SSTL
+		}
+		for(p = 0; p < 6; p++)
 		{
 			sprintf(buffer, "%s/covers", cpath[p]); covers_exist[p + 1] = isDir(buffer);  // MM_ROOT_STD, MM_ROOT_STL, MM_ROOT_SSTL, "/dev_hdd0/GAMES", "/dev_hdd0/GAMEZ"
 		}
-													covers_exist[6] = isDir(WMTMP) && SHOW_COVERS_OR_ICON0; // WMTMP
+													covers_exist[6] = isDir(WMTMP_COVERS);
+													covers_exist[8] = isDir(WMTMP) && SHOW_COVERS_OR_ICON0; // WMTMP
 
 #ifndef ENGLISH_ONLY
 	if(!covers_exist[0]) {use_custom_icon_path = strstr(COVERS_PATH, "%s"); use_icon_region = strstr(COVERS_PATH, "%s/%s");} else {use_icon_region = use_custom_icon_path = false;}
@@ -85,7 +92,7 @@ static void check_cover_folders(char *buffer)
 		netctl_main_9A528B81(ip_size, ip);
 		if(*ip == NULL) use_custom_icon_path = false;
 
-		is_xmbmods_server = islike(COVERS_PATH, LAUNCHPAD_COVER_SVR);
+		is_devil303_server = islike(COVERS_PATH, LAUNCHPAD_COVER_SVR);
 	}
 #endif
 
@@ -114,6 +121,7 @@ static bool get_image_file(char *icon, int flen)
 	for(u8 e = 0; e < 4; e++)
 	{
 		strcpy(icon + flen, ext[ex[e]]);
+
 		if(file_exists(icon)) {swap_ex(e); return true;}
 	}
 	return false;
@@ -126,33 +134,71 @@ static size_t get_name(char *name, const char *filename, u8 cache)
 	//   returns file name with WMTMP path                      (cache == 1 -> remove path first)
 
 	int flen, pos = 0;
-	if(cache) {pos = strlen(filename); while(pos > 0 && filename[pos - 1] != '/') pos--;}
-	if(cache == 2) cache = 0;
+	if(cache) {pos = strlen(filename); while((pos > 0) && filename[pos - 1] != '/') pos--;}
+	if(cache == NO_PATH) cache = 0;
 
-	if(cache)
-		flen = sprintf(name, "%s/%s", WMTMP, filename + pos);
-	else
-		flen = sprintf(name, "%s", filename + pos);
-
-	if((flen > 2) && name[flen - 2] == '.' ) {flen -= 2; name[flen] = NULL;} // remove file extension (split iso)
-	if((flen > 4) && name[flen - 4] == '.' ) {flen -= 4; name[flen] = NULL;} // remove file extension
-	else
-	if((flen > 3) && name[flen - 3] == '.' ) {flen -= 3; name[flen] = NULL;} // remove file extension for roms (.gb .gg .vb)
-	else
-	if(strstr(filename + pos, ".ntfs["))
+	if(cache == WM_COVERS)
+		flen = sprintf(name, "%s/%s", WMTMP_COVERS, filename + pos);
+	else if(cache)
 	{
-		while(name[flen] != '.') flen--; name[flen] = NULL; pos = flen - 4;
-		if((pos > 0) && name[pos] == '.' && (strcasestr(ISO_EXTENSIONS, &name[pos]))) {flen = pos; name[flen] = NULL;} else
-		if(is_BIN_ENC(name)) {flen -= 8; name[flen] = NULL;}
+		#ifdef USE_NTFS
+		if(is_ntfs_path(filename) && (pos > 21))
+		{
+			// convert /dev_ntfs0:/PS3ISO/folder/filename.iso
+			//      to /dev_hdd0/tmp/wmtmp/[folder] filename.iso
+			int p1 = strchr(filename + 12, '/') - filename + 1;
+			int p2 = strchr(filename + p1, '/') - filename;
+			sprintf(name, "%s/[%s", WMTMP, filename + p1);
+			flen = (p2 - p1) + 21;
+			flen += sprintf(name + flen, "] %s", filename + pos);
+		}
+		else
+		#endif
+			flen = sprintf(name, "%s/%s", WMTMP, filename + pos);
+	}
+	else
+	{
+		// remove prepend [PSPISO] or [PS2ISO]
+		if((filename[pos] == '[') && (filename[pos + 7] == ']'))
+		{
+			char *prefix = (char*)filename + pos + 1;
+			if(islike(prefix, paths[id_PSPISO])) pos += 9;
+			if(islike(prefix, paths[id_PS2ISO])) pos += 9;
+		}
+
+		flen = sprintf(name, "%s", filename + pos);
+	}
+
+	if(is_BIN_ENC(name)) {flen -= 8; name[flen] = '\0';}
+
+	if((flen > 2) && name[flen - 2] == '.' ) {flen -= 2; name[flen] = '\0';} // remove file extension (split iso)
+	if((flen > 3) && name[flen - 3] == '.' ) {flen -= 3; name[flen] = '\0';} // remove file extension for roms (.gb .gg .vb)
+	if((flen > 4) && name[flen - 4] == '.' ) {flen -= 4; name[flen] = '\0';} // remove file extension
+	else if(strstr(filename + pos, ".ntfs["))
+	{
+		while(name[flen] != '.') flen--; name[flen] = '\0';
+		if(cache != GET_WMTMP)
+		{
+			pos = flen - 4;
+			if((pos > 0) && name[pos] == '.' && (strcasestr(ISO_EXTENSIONS, &name[pos])))
+				{flen = pos; name[flen] = '\0';}
+			else
+				if(is_BIN_ENC(name)) {flen -= 8; name[flen] = '\0';}
+		}
 	}
 
 	if(cache) return (size_t) flen;
 
 	// remove title id from file name
 	if(name[4] == '_' && name[8] == '.' && (*name == 'B' || *name == 'N' || *name == 'S' || *name == 'U') && ISDIGIT(name[9]) && ISDIGIT(name[10])) {flen = sprintf(name, "%s", &name[12]);}// SLES_000.00-Name
-	if(name[9] == '-' && name[10]== '[') {flen = sprintf(name, "%s", name + 11) - 1; name[flen] = NULL;} // BLES00000-[Name]
-	if(name[10]== '-' && name[11]== '[') {flen = sprintf(name, "%s", name + 12) - 1; name[flen] = NULL;} // BLES-00000-[Name]
-	if(!webman_config->tid) {char *p = strstr(name, " ["); if(p && (p[2] == 'B' || p[2] == 'N' || p[2] == 'S' || p[2] == 'U') && ISDIGIT(p[7])) *p = NULL; flen = strlen(name);}        // Name [BLES-00000]
+	if(name[9] == '-' && name[10]== '[') {flen = sprintf(name, "%s", name + 11) - 1; name[flen] = '\0';} // BLES00000-[Name]
+	if(name[10]== '-' && name[11]== '[') {flen = sprintf(name, "%s", name + 12) - 1; name[flen] = '\0';} // BLES-00000-[Name]
+	if(!webman_config->tid) // Name [BLES-00000]
+	{
+		char *p = strstr(name, " [");
+		if(p && (p[2] == 'B' || p[2] == 'N' || p[2] == 'S' || p[2] == 'U') && ISDIGIT(p[7])) *p = NULL;
+		flen = strlen(name);
+	}
 
 	return (size_t) flen;
 }
@@ -175,15 +221,18 @@ static bool get_cover_by_titleid(char *icon, char *title_id)
 #endif
 
 		// Search retro covers in MM_ROOT_STD, MM_ROOT_STL, MM_ROOT_SSTL
-		for(u8 p = 0; p < 3; p++)
+		if(*title_id == 'S')
 		{
-			if(covers_exist[p + 1] && *title_id == 'S')
+			for(u8 p = 0; p < 3; p++)
 			{
-				flen = sprintf(icon, "%s/covers_retro/psx/%.4s_%.3s.%.2s_COV", cpath[p],
-								title_id,
-								title_id + 4, title_id + 7);
+				if(covers_retro_exist[p])
+				{
+					flen = sprintf(icon, "%s/covers_retro/psx/%.4s_%.3s.%.2s_COV", cpath[p],
+									title_id,
+									title_id + 4, title_id + 7);
 
-				if(get_image_file(icon, flen)) return true;
+					if(get_image_file(icon, flen)) return true;
+				}
 			}
 		}
 
@@ -195,8 +244,15 @@ static bool get_cover_by_titleid(char *icon, char *title_id)
 				if(get_image_file(icon, flen)) return true;
 			}
 
-		// Search covers in WMTMP
+		// Search covers in WMTMP_COVERS
 		if(covers_exist[6])
+		{
+			flen = sprintf(icon, "%s/%s", WMTMP_COVERS, title_id);
+			if(get_image_file(icon, flen)) return true;
+		}
+
+		// Search covers in WMTMP
+		if(covers_exist[8])
 		{
 			flen = sprintf(icon, "%s/%s", WMTMP, title_id);
 			if(get_image_file(icon, flen)) return true;
@@ -212,7 +268,7 @@ static bool get_cover_by_titleid(char *icon, char *title_id)
 #else
 		if(use_custom_icon_path && (webman_config->nocov == ONLINE_COVERS) && (COVERS_PATH[0] == 'h'))
 		{
-			if(is_xmbmods_server && (*title_id != 'B' && *title_id != 'N')) {*icon = NULL; return false;}
+			if(is_devil303_server && (*title_id != 'B' && *title_id != 'N')) {*icon = NULL; return false;}
 
 			if(use_icon_region) sprintf(icon, COVERS_PATH,  (title_id[2] == 'U') ? "US" :
 															(title_id[2] == 'J') ? "JA" : "EN", title_id);
@@ -245,16 +301,16 @@ static bool get_cover_from_name(char *icon, const char *name, char *title_id) //
 			strncpy(title_id, name, TITLEID_LEN);
 	}
 
-	char *pos;
 	if(HAS_TITLE_ID) ;
 
 	else if(islike(name + TITLEID_LEN, "-["))
 		strncpy(title_id, name, TITLEID_LEN); // TITLEID-[NAME]
 	else
 	{
+		char *pos;
 		// search for BLES/UCES/SLES/BCUS/UCUS/SLUS/etc.
 		for(pos = (char*)name; *pos; pos++)
-			if((*pos == '[') && (pos[2] == 'L' || pos[2] == 'C') && ISDIGIT(pos[6]) && ISDIGIT(pos[7]))
+			if((*pos == '[' || *pos == '(') && (pos[2] == 'L' || pos[2] == 'C') && ISDIGIT(pos[6]) && ISDIGIT(pos[7]))
 			{
 				if(pos[1] == 'B' || pos[1] == 'U') // B = PS3, U = PSP
 				{
@@ -282,7 +338,7 @@ static bool get_cover_from_name(char *icon, const char *name, char *title_id) //
 		}
 	}
 
-	if(title_id[4] == '-') strncpy(&title_id[4], &title_id[5], 5); title_id[TITLE_ID_LEN] = NULL;
+	if(title_id[4] == '-') strncpy(&title_id[4], &title_id[5], 5); title_id[TITLE_ID_LEN] = '\0';
 
 	// get cover using titleID obtained from file name
 	if(get_cover_by_titleid(icon, title_id)) return true;
@@ -341,10 +397,10 @@ static void get_default_icon_from_folder(char *icon, u8 is_dir, const char *para
 				if(pos)
 					{*pos = NULL; sprintf(titleid, "%s/%s", entry_name, title_id); *pos = '/';}
 				else
-					sprintf(titleid, "%s", title_id);
+					strcpy(titleid, title_id);
 
-				sprintf(icon, "%s/%s.JPG", param, titleid); if(file_exists(icon)) return;
-				sprintf(icon, "%s/%s.PNG", param, titleid); if(file_exists(icon)) return;
+				flen = sprintf(icon, "%s/%s", param, titleid);
+				if(get_image_file(icon, flen)) return;
 
 				*icon = NULL;
 			}
@@ -361,9 +417,15 @@ static void get_default_icon_from_folder(char *icon, u8 is_dir, const char *para
 			// continue searching for covers
 			if(SHOW_COVERS) return;
 
-			// get covers/icons from /dev_hdd0/tmp/wmtmp
-			flen = get_name(icon, entry_name, GET_WMTMP);
+			// Search covers in WMTMP_COVERS
+			if(covers_exist[6])
+			{
+				flen = get_name(icon, entry_name, WM_COVERS);
+				if(get_image_file(icon, flen)) return;
+			}
 
+			// Search covers in WMTMP
+			flen = get_name(icon, entry_name, GET_WMTMP);
 			if(get_image_file(icon, flen)) return;
 
 			*icon = NULL;
@@ -396,13 +458,16 @@ static void get_default_icon_for_iso(char *icon, const char *param, char *file, 
 		flen = get_name(icon, file, GET_WMTMP); //wmtmp
 	}
 
-	char *p = isdir ? NULL : strstr(icon + MAX(flen - 13, 0), ".ntfs[");
-	if(p) {flen -= strlen(p), *p = NULL;}
+	if(!isdir && (flen > 13))
+	{
+		char *p = strstr(icon + flen - 13, ".ntfs[");
+		if(p) {flen -= strlen(p), *p = NULL;}
+	}
 
-	if((flen > 2) && icon[flen - 2] == '.' ) {flen -= 2, icon[flen] = NULL;} // remove file extension (split iso)
-	if((flen > 4) && icon[flen - 4] == '.' ) {flen -= 4, icon[flen] = NULL;} // remove file extension
+	if((flen > 2) && icon[flen - 2] == '.' ) {flen -= 2, icon[flen] = '\0';} // remove file extension (split iso)
+	if((flen > 4) && icon[flen - 4] == '.' ) {flen -= 4, icon[flen] = '\0';} // remove file extension
 	else
-	if((flen > 3) && icon[flen - 3] == '.' ) {flen -= 3, icon[flen] = NULL;} // remove file extension
+	if((flen > 3) && icon[flen - 3] == '.' ) {flen -= 3, icon[flen] = '\0';} // remove file extension
 
 	//file name + ext
 	if(get_image_file(icon, flen)) return;
@@ -421,7 +486,7 @@ static void get_default_icon_for_iso(char *icon, const char *param, char *file, 
 			sprintf(remote_file, "%s/%s/PS3_GAME/ICON0.PNG", param, file);
 			flen = get_name(icon, file, GET_WMTMP); sprintf(icon + flen, ".png");
 
-			copy_net_file(icon, remote_file, ns, COPY_WHOLE_FILE);
+			copy_net_file(icon, remote_file, ns);
 			if(file_exists(icon)) return;
 		}
 		else
@@ -433,13 +498,13 @@ static void get_default_icon_for_iso(char *icon, const char *param, char *file, 
 
 			for(u8 e = 0; e < 4; e++)
 			{
-				sprintf(icon + icon_len, "%s", ext[e]);
+				strcpy(icon + icon_len, ext[e]);
 				if(file_exists(icon)) return;
 
-				sprintf(remote_file + tlen, "%s", ext[e]);
+				strcpy(remote_file + tlen, ext[e]);
 
 				//Copy remote icon locally
-				copy_net_file(icon, remote_file, ns, COPY_WHOLE_FILE);
+				copy_net_file(icon, remote_file, ns);
 				if(file_exists(icon)) return;
 			}
 		}
@@ -522,7 +587,7 @@ no_icon0:
 		if(file_exists(icon))
 		{
 			if(get_image_file(icon, flen)) return default_icon;
-			flen -= 4; icon[flen] = NULL;
+			flen -= 4; icon[flen] = '\0';
 			if(get_image_file(icon, flen)) return default_icon;
 			sprintf(icon, "/dev_bdvd/%s.ICON0.PNG", file);
 			if(file_exists(icon)) return default_icon;
@@ -544,7 +609,7 @@ static int get_title_and_id_from_sfo(char *param_sfo, char *title_id, const char
 	char *title = param_sfo;
 
 	// get title_id & title from PARAM.SFO
-	if(is_sfo(mem))
+	if(sfo_size && is_sfo(mem))
 	{
 		if((IS_HDD0 && islike(param_sfo + 9, "/game/")) || islike(param_sfo + 11, "/GAMEI/") || strstr(param_sfo, "_00-")) use_filename = false;
 
@@ -612,11 +677,14 @@ static int get_name_iso_or_sfo(char *param_sfo, char *title_id, char *icon, cons
 
 	if(IS_PS3ISO)
 	{
-		get_name(param_sfo, entry_name, GET_WMTMP); strcat(param_sfo, ".SFO\0"); // WMTMP
-		if((!IS_NTFS) && not_exists(param_sfo))
+		flen = get_name(param_sfo, entry_name, GET_WMTMP); strcat(param_sfo + flen, ".SFO"); // WMTMP
+		if(not_exists(param_sfo))
 		{
 			get_name(tempstr, entry_name, NO_EXT);
-			sprintf(param_sfo, "%s/%s.SFO", param, tempstr); // /PS3ISO
+			if(IS_NTFS || IS_NET)
+				sprintf(param_sfo, "%s/%s.SFO", WMTMP, tempstr); // /PS3ISO
+			else
+				sprintf(param_sfo, "%s/%s.SFO", param, tempstr); // /PS3ISO
 		}
 
 		if(get_title_and_id_from_sfo(title, title_id, entry_name, icon, tempstr, f0) != CELL_FS_SUCCEEDED || !HAS_TITLE_ID)
@@ -628,7 +696,7 @@ static int get_name_iso_or_sfo(char *param_sfo, char *title_id, char *icon, cons
 
 				if(read_file(iso_file, title_id, 11, 0x810) == 11)
 				{
-					strncpy(&title_id[4], &title_id[5], 5); title_id[TITLE_ID_LEN] = NULL;
+					strncpy(&title_id[4], &title_id[5], 5); title_id[TITLE_ID_LEN] = '\0';
 				}
 			}
 
@@ -638,6 +706,7 @@ static int get_name_iso_or_sfo(char *param_sfo, char *title_id, char *icon, cons
 	else
 	{
 		get_name(title, entry_name, NO_EXT);
+
 		if(f1 >= id_BDISO && f1 <= id_ISO)
 		{
 			// info level: 0=Path, 1=Path + ID, 2=ID, 3=None

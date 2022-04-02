@@ -6,6 +6,23 @@ static u64 blocked_url[MAX_BLOCKED_URL][2]; u8 url_count = 0;
 
 #ifdef REMOVE_SYSCALLS
 
+static void disable_signin_dialog(void)
+{
+	#ifdef COBRA_ONLY
+	if(file_exists(NPSIGNIN_PLUGIN_OFF))
+	{
+		sys_map_path(NPSIGNIN_PLUGIN_RCO, NPSIGNIN_PLUGIN_OFF);
+	}
+	#endif
+}
+
+static void enable_signin_dialog(void)
+{
+	#ifdef COBRA_ONLY
+	sys_map_path(NPSIGNIN_PLUGIN_RCO, NULL);
+	#endif
+}
+
 #ifdef PS3MAPI
 
 static u64 sc_backup[CFW_SYSCALLS];
@@ -28,7 +45,7 @@ static void restore_cfw_syscalls(void)
 	for(u8 sc = 0; sc < CFW_SYSCALLS; sc++)
 		lv2_poke_ps3mapi( SYSCALL_PTR(sc_disable[sc]), sc_backup[sc] );
 
-	syscalls_removed = (peekq(TOC) == SYSCALLS_UNAVAILABLE);
+	syscalls_removed = (lv2_peek_hen(TOC) == SYSCALLS_UNAVAILABLE);
 
 	//ps3mapi_key = 0;
 	{ PS3MAPI_DISABLE_ACCESS_SYSCALL8 }
@@ -36,15 +53,17 @@ static void restore_cfw_syscalls(void)
 	for(u8 sc = 0; sc < CFW_SYSCALLS; sc++)
 		pokeq( SYSCALL_PTR(sc_disable[sc]), sc_backup[sc] );
 
-	syscalls_removed = (peekq(TOC) == SYSCALLS_UNAVAILABLE);
+	syscalls_removed = (lv2_peek_hen(TOC) == SYSCALLS_UNAVAILABLE);
 	#endif
+
+	if(!syscalls_removed) disable_signin_dialog();
 
 #ifndef ENGLISH_ONLY
 	char STR_RSTCFWSYS[80];//	= "CFW Syscalls restored!";
 	char STR_RSTCFWSYSF[80];//	= "Failed to restore CFW Syscalls";
 
 	language("STR_RSTCFWSYS", STR_RSTCFWSYS, "CFW Syscalls restored!");
-	language("STR_RSTCFWSYSF", STR_RSTCFWSYSF, "Failed to remove CFW Syscalls");
+	language("STR_RSTCFWSYSF", STR_RSTCFWSYSF, "Failed to restore CFW Syscalls");
 
 	close_language();
 #endif
@@ -56,6 +75,7 @@ static void restore_cfw_syscalls(void)
 	}
 	else
 	{
+		disable_signin_dialog();
 		if(!webman_config->nobeep) play_rco_sound("snd_trophy");
 		vshNotify_WithIcon(ICON_CHECK, STR_RSTCFWSYS);
 	}
@@ -81,6 +101,8 @@ static void restore_cfw_syscalls(void)
 
 static void restore_blocked_urls(bool notify)
 {
+	enable_signin_dialog();
+
 	if(!url_count) return;
 
 	if(notify) vshNotify_WithIcon(ICON_CHECK, "PSN servers restored");
@@ -99,7 +121,7 @@ static void remove_cfw_syscall8(void)
 
 	restore_blocked_urls(true);
 
-	u64 sc_null = peekq(SYSCALL_TABLE), toc = peekq(TOC);
+	u64 sc_null = lv2_peek_hen(SYSCALL_TABLE), toc = lv2_peek_hen(TOC);
 
 	// disable syscall 8 only if others cfw syscalls were disabled
 	if(syscalls_removed || toc == SYSCALLS_UNAVAILABLE || toc == sc_null)
@@ -119,6 +141,8 @@ static void remove_cfw_syscalls(bool keep_ccapi)
 {
 	detect_firmware();
 
+	syscalls_removed = CFW_SYSCALLS_REMOVED(TOC);
+
 	if(!SYSCALL_TABLE || syscalls_removed) return;
 
 	u64 sc_null = peekq(SYSCALL_TABLE);
@@ -136,9 +160,7 @@ static void remove_cfw_syscalls(bool keep_ccapi)
 	for(u8 sc = initial_sc; sc < CFW_SYSCALLS; sc++)
 		pokeq(SYSCALL_PTR( sc_disable[sc] ), sc_null);
 
-	u64 sc8  = peekq(SYSCALL_PTR(8)) | peekq(SYSCALL_PTR(9));
-
-	syscalls_removed = (sc8 == SYSCALLS_UNAVAILABLE || sc8 == sc_null);
+	syscalls_removed = CFW_SYSCALLS_REMOVED(TOC);
 
 	#ifdef COBRA_ONLY
 	if(syscalls_removed)
@@ -196,6 +218,7 @@ static void disable_cfw_syscalls(bool keep_ccapi)
 		}
 		else
 		{
+			disable_signin_dialog();
 			if(!webman_config->nobeep) { BEEP2 }
 			vshNotify_WithIcon(ICON_ERROR, STR_RMVCFWSYSF);
 		}
